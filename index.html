@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Sealed Orb | Temple Puzzle</title>
+<meta name="description" content="A one-face, Rubik's-cube-style puzzle in 3D. Slide the rows, flip the columns, and match every pair to wake the orb.">
+<meta name="theme-color" content="#0b1020">
+<style>
+:root {
+  --t: clamp(58px, 19vw, 128px);   /* tile size */
+  --gap: 10px;
+  --depth: 26px;
+  --ctl: clamp(40px, 11vw, 52px);  /* control button size */
+  --gold: #f0b94a;
+  --text: #f1ead8;
+  --muted: #a99f86;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  color: var(--text);
+  font-family: Georgia, 'Times New Roman', serif;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, #1d3566 0%, transparent 70%),
+    radial-gradient(ellipse 70% 40% at 50% 100%, #3b2c14 0%, transparent 70%),
+    #0b1020;
+  background-attachment: fixed;
+  display: flex;
+  justify-content: center;
+}
+.app {
+  width: 100%;
+  max-width: 760px;
+  padding: 1.6rem 1rem 2.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* ---- Header + orb ---- */
+.orb {
+  width: 76px; height: 76px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff6c4 0%, #e9ae38 42%, #7a4a10 100%);
+  border: 3px solid #5b4a2a;
+  box-shadow: 0 0 0 5px rgba(240,185,74,0.08), 0 0 18px rgba(240,185,74,0.15);
+  filter: saturate(0.35) brightness(0.55);
+  transition: filter 0.8s ease, box-shadow 0.8s ease;
+}
+.solved .orb {
+  filter: none;
+  box-shadow: 0 0 0 8px rgba(240,185,74,0.18), 0 0 70px rgba(240,185,74,0.75);
+  animation: pulse 2.2s ease-in-out infinite;
+}
+@keyframes pulse { 50% { transform: scale(1.07); } }
+h1 { font-size: clamp(1.6rem, 6vw, 2.4rem); margin: 0.7rem 0 0.2rem; letter-spacing: 0.02em; }
+.lede { margin: 0; color: var(--muted); font-style: italic; max-width: 34ch; }
+.seal {
+  display: inline-grid; grid-template-columns: repeat(3, 30px); gap: 4px; margin-top: 0.9rem; padding: 6px;
+  border: 1px solid rgba(240,185,74,0.4); border-radius: 10px; background: rgba(0,0,0,0.3);
+}
+.seal span {
+  width: 30px; height: 30px; border-radius: 5px; display: grid; place-items: center;
+  font-size: 15px; color: rgba(255,255,255,0.8); text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--c) 82%, #fff), var(--c) 60%, var(--cd));
+}
+
+/* ---- 3D scene ---- */
+.scene { perspective: 1100px; margin: 1.6rem 0 1.2rem; padding: 0.8rem; touch-action: pan-y; }
+.rig {
+  transform-style: preserve-3d;
+  transform: rotateX(var(--rx, 18deg)) rotateY(var(--ry, -10deg));
+  will-change: transform;
+}
+.plate {
+  transform-style: preserve-3d;
+  display: grid;
+  grid-template-columns: var(--ctl) auto var(--ctl);
+  grid-template-rows: var(--ctl) auto;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 20px;
+  background: linear-gradient(145deg, #2a2a33, #15151d);
+  border: 2px solid #4a4a58;
+  box-shadow: 0 30px 60px rgba(0,0,0,0.55);
+}
+.cols, .rows-l, .rows-r { display: flex; gap: var(--gap); }
+.cols { grid-column: 2; grid-row: 1; }
+.rows-l { grid-column: 1; grid-row: 2; flex-direction: column; }
+.rows-r { grid-column: 3; grid-row: 2; flex-direction: column; }
+.cols > *, .rows-l > *, .rows-r > * { flex: 0 0 var(--t); }
+.cols > * { width: var(--t); height: var(--ctl); }
+.rows-l > *, .rows-r > * { height: var(--t); width: var(--ctl); }
+.ctl {
+  border: 2px solid #6a5a35; border-radius: 12px; cursor: pointer;
+  background: linear-gradient(160deg, #3a3326, #231e14);
+  color: var(--gold); font-size: clamp(1rem, 4vw, 1.4rem); font-family: inherit;
+  transform: translateZ(8px);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.ctl:hover { background: linear-gradient(160deg, #54482f, #31291a); }
+.ctl:active { transform: translateZ(2px); }
+.ctl:focus-visible, .btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.ctl:disabled { opacity: 0.5; cursor: wait; }
+
+.board {
+  grid-column: 2; grid-row: 2;
+  position: relative;
+  transform-style: preserve-3d;
+  width: calc(var(--t) * 3 + var(--gap) * 2);
+  height: calc(var(--t) * 2 + var(--gap));
+}
+.tile {
+  position: absolute; top: 0; left: 0;
+  width: var(--t); height: var(--t);
+  transform-style: preserve-3d;
+}
+.face, .side { position: absolute; }
+.face-front {
+  inset: 0;
+  transform: translateZ(var(--depth));
+  border-radius: 8px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--c) 82%, #fff), var(--c) 55%, var(--cd));
+  border: 2px solid rgba(255,255,255,0.28);
+  box-shadow: inset 0 0 18px rgba(0,0,0,0.3);
+  display: grid; place-items: center;
+  font-size: calc(var(--t) * 0.36); color: rgba(255,255,255,0.78);
+  text-shadow: 0 2px 4px rgba(0,0,0,0.45);
+}
+.side { background: var(--cd); }
+.side-top    { top: 0; left: 0; width: 100%; height: var(--depth); transform-origin: top;    transform: rotateX(90deg);  filter: brightness(1.15); }
+.side-bottom { bottom: 0; left: 0; width: 100%; height: var(--depth); transform-origin: bottom; transform: rotateX(-90deg); filter: brightness(0.7); }
+.side-left   { top: 0; left: 0; width: var(--depth); height: 100%; transform-origin: left;   transform: rotateY(-90deg); filter: brightness(0.85); }
+.side-right  { top: 0; right: 0; width: var(--depth); height: 100%; transform-origin: right;  transform: rotateY(90deg);  filter: brightness(0.6); }
+.solved .face-front { box-shadow: inset 0 0 18px rgba(0,0,0,0.3), 0 0 22px rgba(240,185,74,0.5); }
+
+/* ---- HUD + buttons ---- */
+.hud { display: flex; gap: 1.4rem; justify-content: center; flex-wrap: wrap; color: var(--muted); min-height: 1.6em; }
+#status { color: var(--text); }
+.solved #status { color: var(--gold); font-weight: bold; }
+.actions { display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap; justify-content: center; }
+.btn {
+  font-family: inherit; font-size: 1rem; padding: 0.6em 1.3em; border-radius: 999px; cursor: pointer;
+  background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid rgba(255,255,255,0.22);
+}
+.btn:hover { background: rgba(255,255,255,0.12); }
+.btn-primary { background: linear-gradient(135deg, var(--gold), #c98b25); color: #241407; border: none; font-weight: bold; }
+.how { margin-top: 1.6rem; max-width: 40ch; color: var(--muted); font-size: 0.95rem; line-height: 1.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .solved .orb { animation: none; }
+  .rig { --rx: 12deg !important; --ry: -6deg !important; }
+}
+</style>
+</head>
+<body>
+<main class="app" id="app">
+  <header>
+    <div class="orb" id="orb" aria-hidden="true"></div>
+    <h1>The Sealed Orb</h1>
+    <p class="lede">The stones shift beneath your hands. Return them to the seal to wake the orb.</p>
+    <div class="seal" id="seal" aria-label="The seal: the goal arrangement"></div>
+  </header>
+
+  <section class="scene" id="scene" aria-label="Puzzle board">
+    <div class="rig" id="rig">
+      <div class="plate">
+        <div class="cols" id="cols"></div>
+        <div class="rows-l" id="rowsL"></div>
+        <div class="board" id="board"></div>
+        <div class="rows-r" id="rowsR"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="hud" aria-live="polite">
+    <span id="status">Restore the seal: match the picture above.</span>
+    <span id="moves">Moves: 0</span>
+  </div>
+
+  <div class="actions">
+    <button class="btn" id="undo" type="button">Undo</button>
+    <button class="btn" id="reset" type="button">Restart</button>
+    <button class="btn btn-primary" id="shuffle" type="button">New puzzle</button>
+  </div>
+
+  <p class="how">Slide a row left or right (the end stone wraps around), or flip a column to swap its two stones, until the board matches the seal. Each color has its own shape, so everyone can play.</p>
+</main>
+
+<script>
+(() => {
+  const COLS = 3, ROWS = 2, GAP = 10, MS = matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 380;
+  // Stone i belongs in cell i. The seal (goal) is this arrangement.
+  const COLORS = [
+    { name: 'ruby',     c: '#e0405c', d: '#7d1428', g: '◆' },
+    { name: 'amber',    c: '#f08a2c', d: '#7a3d0a', g: '★' },
+    { name: 'citrine',  c: '#e8cf3d', d: '#7a6a0c', g: '■' },
+    { name: 'emerald',  c: '#2fb36d', d: '#10532f', g: '▲' },
+    { name: 'sapphire', c: '#3d7fe0', d: '#173b78', g: '●' },
+    { name: 'amethyst', c: '#9b5de5', d: '#47207a', g: '✦' },
+  ];
+  const MIN_PAR = 5;  // every puzzle needs at least this many moves
+
+  const app = document.getElementById('app');
+  const board = document.getElementById('board');
+  const statusEl = document.getElementById('status');
+  const movesEl = document.getElementById('moves');
+  const undoBtn = document.getElementById('undo');
+
+  // Each tile keeps its identity; cells[] maps board position -> tile.
+  const tiles = [];
+  let cells = new Array(ROWS * COLS);
+  let startLayout = [];
+  let startPar = 0;   // tile id per cell at the start of this puzzle
+  let history = [];
+  let busy = false;
+
+  const tf = (c, r, z = 0) =>
+    `translate3d(calc(${c} * (100% + ${GAP}px)), calc(${r} * (100% + ${GAP}px)), ${z}px)`;
+
+  function buildTiles() {
+    for (let i = 0; i < ROWS * COLS; i++) {
+      const color = COLORS[i];
+      const el = document.createElement('div');
+      el.className = 'tile';
+      el.style.setProperty('--c', color.c);
+      el.style.setProperty('--cd', color.d);
+      el.innerHTML = `<div class="side side-top"></div><div class="side side-bottom"></div>
+        <div class="side side-left"></div><div class="side side-right"></div>
+        <div class="face face-front" aria-label="${color.name}">${color.g}</div>`;
+      board.appendChild(el);
+      tiles.push({ id: i, color: i, r: 0, c: 0, el });
+    }
+  }
+
+  function place(tile, r, c) {
+    tile.r = r; tile.c = c;
+    cells[r * COLS + c] = tile;
+    tile.el.style.transform = tf(c, r);
+  }
+
+  function layoutSolved() {
+    cells = new Array(ROWS * COLS);
+    tiles.forEach(t => place(t, Math.floor(t.id / COLS), t.id % COLS));
+  }
+
+  // A move is { type: 'row', r, dir } or { type: 'col', c }.
+  function applyMove(move, animate) {
+    const next = [];   // { tile, r, c, lift }
+    if (move.type === 'row') {
+      for (let c = 0; c < COLS; c++) {
+        const tile = cells[move.r * COLS + c];
+        const nc = (c + move.dir + COLS) % COLS;
+        next.push({ tile, r: move.r, c: nc, lift: Math.abs(nc - c) > 1 });
+      }
+    } else {
+      for (let r = 0; r < ROWS; r++) {
+        const tile = cells[r * COLS + move.c];
+        next.push({ tile, r: ROWS - 1 - r, c: move.c, lift: r === 0 });
+      }
+    }
+    const anims = [];
+    next.forEach(({ tile, r, c, lift }) => {
+      const from = tf(tile.c, tile.r), to = tf(c, r);
+      if (animate) {
+        const mid = tf((tile.c + c) / 2, (tile.r + r) / 2, lift ? 70 : 0);
+        anims.push(tile.el.animate([{ transform: from }, { transform: mid }, { transform: to }],
+          { duration: MS, easing: 'cubic-bezier(.3,.7,.3,1)' }));
+      }
+    });
+    next.forEach(({ tile, r, c }) => { cells[tile.r * COLS + tile.c] = null; });
+    next.forEach(({ tile, r, c }) => place(tile, r, c));
+    return anims;
+  }
+
+  const inverse = m => (m.type === 'row' ? { ...m, dir: -m.dir } : m);
+  const randomMove = () => Math.random() < 0.5
+    ? { type: 'row', r: Math.floor(Math.random() * ROWS), dir: Math.random() < 0.5 ? -1 : 1 }
+    : { type: 'col', c: Math.floor(Math.random() * COLS) };
+
+  const isSolved = () => cells.every((t, i) => t.id === i);
+
+  // Fewest moves from every arrangement back to the seal (breadth-first search).
+  const ALL_MOVES = [];
+  for (let r = 0; r < ROWS; r++) ALL_MOVES.push({ type: 'row', r, dir: -1 }, { type: 'row', r, dir: 1 });
+  for (let c = 0; c < COLS; c++) ALL_MOVES.push({ type: 'col', c });
+  function step(s, m) {
+    const n = s.slice();
+    if (m.type === 'row') for (let c = 0; c < COLS; c++) n[m.r * COLS + (c + m.dir + COLS) % COLS] = s[m.r * COLS + c];
+    else { n[m.c] = s[COLS + m.c]; n[COLS + m.c] = s[m.c]; }
+    return n;
+  }
+  const DIST = new Map([['0,1,2,3,4,5', 0]]);
+  for (let frontier = [[0, 1, 2, 3, 4, 5]]; frontier.length;) {
+    const next = [];
+    for (const s of frontier) for (const m of ALL_MOVES) {
+      const n = step(s, m), k = n.join();
+      if (!DIST.has(k)) { DIST.set(k, DIST.get(s.join()) + 1); next.push(n); }
+    }
+    frontier = next;
+  }
+  const par = () => DIST.get(cells.map(t => t.id).join());
+
+  function scramble() {
+    do {
+      layoutSolved();
+      let last = null;
+      for (let i = 0; i < 30; i++) {
+        let m = randomMove();
+        if (last && JSON.stringify(inverse(last)) === JSON.stringify(m)) continue;
+        applyMove(m, false);
+        last = m;
+      }
+    } while (par() < MIN_PAR);
+    startLayout = cells.map(t => t.id);
+    startPar = par();
+    history = [];
+    refresh();
+  }
+
+  function restart() {
+    if (busy) return;
+    const pos = new Map(startLayout.map((id, i) => [id, i]));
+    cells = new Array(ROWS * COLS);
+    tiles.forEach(t => {
+      const i = pos.get(t.id);
+      const from = tf(t.c, t.r);
+      place(t, Math.floor(i / COLS), i % COLS);
+      t.el.animate([{ transform: from }, { transform: tf(t.c, t.r) }], { duration: MS, easing: 'ease' });
+    });
+    history = [];
+    refresh();
+  }
+
+  function refresh() {
+    const solved = isSolved();
+    app.classList.toggle('solved', solved);
+    const best = par();
+    const perfect = solved && history.length === startPar;
+    statusEl.textContent = solved
+      ? (perfect ? 'The orb awakens! Fewest moves possible!' : 'The orb awakens! Well done.')
+      : 'Restore the seal: match the picture above.';
+    movesEl.textContent = solved ? `Moves: ${history.length} (fewest: ${startPar})` : `Moves: ${history.length}`;
+    undoBtn.disabled = history.length === 0;
+  }
+
+  function doMove(move, record = true) {
+    if (busy) return;
+    busy = true;
+    setControls(true);
+    const anims = applyMove(move, true);
+    if (record) history.push(move);
+    setTimeout(() => { busy = false; setControls(false); refresh(); }, MS);
+  }
+
+  function undo() {
+    if (busy || !history.length) return;
+    const last = history.pop();
+    busy = true; setControls(true);
+    applyMove(inverse(last), true);
+    setTimeout(() => { busy = false; setControls(false); refresh(); }, MS);
+  }
+
+  // ---- Controls ----
+  const allCtl = [];
+  function makeBtn(parent, label, text, move) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'ctl'; b.textContent = text;
+    b.setAttribute('aria-label', label);
+    b.addEventListener('click', () => doMove(move));
+    parent.appendChild(b); allCtl.push(b);
+  }
+  function setControls(disabled) { allCtl.forEach(b => b.disabled = disabled); }
+
+  for (let c = 0; c < COLS; c++) makeBtn(document.getElementById('cols'), `Flip column ${c + 1}`, '⇅', { type: 'col', c });
+  for (let r = 0; r < ROWS; r++) {
+    makeBtn(document.getElementById('rowsL'), `Slide row ${r + 1} left`, '◀', { type: 'row', r, dir: -1 });
+    makeBtn(document.getElementById('rowsR'), `Slide row ${r + 1} right`, '▶', { type: 'row', r, dir: 1 });
+  }
+
+  document.getElementById('undo').addEventListener('click', undo);
+  document.getElementById('reset').addEventListener('click', restart);
+  document.getElementById('shuffle').addEventListener('click', () => { if (!busy) scramble(); });
+
+  // ---- Tilt the whole board with the pointer ----
+  const scene = document.getElementById('scene');
+  const rig = document.getElementById('rig');
+  scene.addEventListener('pointermove', e => {
+    const b = scene.getBoundingClientRect();
+    const x = (e.clientX - b.left) / b.width - 0.5;
+    const y = (e.clientY - b.top) / b.height - 0.5;
+    rig.style.setProperty('--ry', `${(x * 36).toFixed(1)}deg`);
+    rig.style.setProperty('--rx', `${(18 - y * 30).toFixed(1)}deg`);
+  });
+  scene.addEventListener('pointerleave', () => {
+    rig.style.removeProperty('--rx'); rig.style.removeProperty('--ry');
+  });
+  rig.style.transition = 'transform 0.25s ease-out';
+
+  const seal = document.getElementById('seal');
+  COLORS.forEach(col => {
+    const s = document.createElement('span');
+    s.style.setProperty('--c', col.c); s.style.setProperty('--cd', col.d);
+    s.textContent = col.g; s.title = col.name;
+    seal.appendChild(s);
+  });
+
+  buildTiles();
+  scramble();
+})();
+</script>
+</body>
+</html>
