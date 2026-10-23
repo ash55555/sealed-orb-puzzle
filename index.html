@@ -3,411 +3,481 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Sealed Orb | Temple Puzzle</title>
-<meta name="description" content="A one-face, Rubik's-cube-style puzzle in 3D. Slide the rows, flip the columns, and match every pair to wake the orb.">
-<meta name="theme-color" content="#0b1020">
+<title>The Sun Orb | Temple Puzzle</title>
+<meta name="description" content="A 3D stone-ball twist puzzle in Maya style. Drag the stones to turn the orb until every side shows one glyph.">
+<meta name="theme-color" content="#0a1a17">
 <style>
 :root {
-  --t: clamp(58px, 19vw, 128px);   /* tile size */
-  --gap: 10px;
-  --depth: 26px;
-  --ctl: clamp(40px, 11vw, 52px);  /* control button size */
-  --gold: #f0b94a;
-  --text: #f1ead8;
-  --muted: #a99f86;
+  --gold: #f0c35a;
+  --copper: #c9783c;
+  --stone: #cfc6ad;
+  --muted: #a89f84;
+  --moss: #6f9d4a;
+  --fret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='14'%3E%3Cpath d='M0 14V8h6V2h6v6h6V2h6v6h6V2h6v12z' fill='%23b8692f'/%3E%3C/svg%3E");
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
 body {
-  color: var(--text);
+  color: var(--stone);
   font-family: Georgia, 'Times New Roman', serif;
   background:
-    radial-gradient(ellipse 80% 50% at 50% 0%, #1d3566 0%, transparent 70%),
-    radial-gradient(ellipse 70% 40% at 50% 100%, #3b2c14 0%, transparent 70%),
-    #0b1020;
+    radial-gradient(ellipse 70% 45% at 50% 38%, rgba(47,159,150,0.22) 0%, transparent 70%),
+    radial-gradient(ellipse 90% 35% at 50% 100%, rgba(111,157,74,0.22) 0%, transparent 70%),
+    linear-gradient(#08140f, #0f2218 55%, #1a130a);
   background-attachment: fixed;
-  display: flex;
-  justify-content: center;
+  display: flex; justify-content: center;
+}
+body::before, body::after {
+  content: ""; position: fixed; left: 0; right: 0; height: 14px; z-index: 5;
+  background: var(--fret) repeat-x; opacity: 0.85;
+}
+body::before { top: 0; }
+body::after { bottom: 0; transform: scaleY(-1); }
+.pyramid {
+  position: fixed; left: 50%; bottom: 14px; width: min(900px, 120vw); transform: translateX(-50%);
+  opacity: 0.1; pointer-events: none; z-index: 0;
 }
 .app {
-  width: 100%;
-  max-width: 760px;
-  padding: 1.6rem 1rem 2.4rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
+  position: relative; z-index: 1; width: 100%; max-width: 640px;
+  padding: 2rem 1rem 3.4rem; display: flex; flex-direction: column; align-items: center; text-align: center;
 }
+.kicker { letter-spacing: 0.32em; font-size: 0.72rem; color: var(--copper); text-transform: uppercase; margin: 0; }
+h1 {
+  margin: 0.25rem 0 0.2rem; font-size: clamp(1.9rem, 7vw, 2.8rem); letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--gold); text-shadow: 0 2px 0 #6a3a14, 0 0 22px rgba(240,195,90,0.25);
+}
+.lede { margin: 0; color: var(--muted); font-style: italic; max-width: 36ch; }
 
-/* ---- Header + orb ---- */
-.orb {
-  width: 76px; height: 76px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fff6c4 0%, #e9ae38 42%, #7a4a10 100%);
-  border: 3px solid #5b4a2a;
-  box-shadow: 0 0 0 5px rgba(240,185,74,0.08), 0 0 18px rgba(240,185,74,0.15);
-  filter: saturate(0.35) brightness(0.55);
-  transition: filter 0.8s ease, box-shadow 0.8s ease;
-}
-.solved .orb {
-  filter: none;
-  box-shadow: 0 0 0 8px rgba(240,185,74,0.18), 0 0 70px rgba(240,185,74,0.75);
-  animation: pulse 2.2s ease-in-out infinite;
-}
-@keyframes pulse { 50% { transform: scale(1.07); } }
-h1 { font-size: clamp(1.6rem, 6vw, 2.4rem); margin: 0.7rem 0 0.2rem; letter-spacing: 0.02em; }
-.lede { margin: 0; color: var(--muted); font-style: italic; max-width: 34ch; }
-.seal {
-  display: inline-grid; grid-template-columns: repeat(3, 30px); gap: 4px; margin-top: 0.9rem; padding: 6px;
-  border: 1px solid rgba(240,185,74,0.4); border-radius: 10px; background: rgba(0,0,0,0.3);
-}
-.seal span {
-  width: 30px; height: 30px; border-radius: 5px; display: grid; place-items: center;
-  font-size: 15px; color: rgba(255,255,255,0.8); text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-  background: linear-gradient(145deg, color-mix(in srgb, var(--c) 82%, #fff), var(--c) 60%, var(--cd));
-}
+.stage { position: relative; width: min(94vw, 580px); aspect-ratio: 1; margin: 0.4rem 0 0.2rem; }
+#orb { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; border-radius: 50%; }
+#orb:active { cursor: grabbing; }
+#orb:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; }
 
-/* ---- 3D scene ---- */
-.scene { perspective: 1100px; margin: 1.6rem 0 1.2rem; padding: 0.8rem; touch-action: pan-y; }
-.rig {
-  transform-style: preserve-3d;
-  transform: rotateX(var(--rx, 18deg)) rotateY(var(--ry, -10deg));
-  will-change: transform;
-}
-.plate {
-  transform-style: preserve-3d;
-  display: grid;
-  grid-template-columns: var(--ctl) auto var(--ctl);
-  grid-template-rows: var(--ctl) auto;
-  gap: 8px;
-  padding: 14px;
-  border-radius: 20px;
-  background: linear-gradient(145deg, #2a2a33, #15151d);
-  border: 2px solid #4a4a58;
-  box-shadow: 0 30px 60px rgba(0,0,0,0.55);
-}
-.cols, .rows-l, .rows-r { display: flex; gap: var(--gap); }
-.cols { grid-column: 2; grid-row: 1; }
-.rows-l { grid-column: 1; grid-row: 2; flex-direction: column; }
-.rows-r { grid-column: 3; grid-row: 2; flex-direction: column; }
-.cols > *, .rows-l > *, .rows-r > * { flex: 0 0 var(--t); }
-.cols > * { width: var(--t); height: var(--ctl); }
-.rows-l > *, .rows-r > * { height: var(--t); width: var(--ctl); }
-.ctl {
-  border: 2px solid #6a5a35; border-radius: 12px; cursor: pointer;
-  background: linear-gradient(160deg, #3a3326, #231e14);
-  color: var(--gold); font-size: clamp(1rem, 4vw, 1.4rem); font-family: inherit;
-  transform: translateZ(8px);
-  transition: background 0.15s ease, transform 0.15s ease;
-}
-.ctl:hover { background: linear-gradient(160deg, #54482f, #31291a); }
-.ctl:active { transform: translateZ(2px); }
-.ctl:focus-visible, .btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-.ctl:disabled { opacity: 0.5; cursor: wait; }
+.hud { min-height: 3.2rem; color: var(--muted); }
+#status { color: var(--stone); margin: 0 0 0.2rem; }
+.solved #status { color: var(--gold); font-weight: bold; text-shadow: 0 0 14px rgba(240,195,90,0.5); }
 
-.board {
-  grid-column: 2; grid-row: 2;
-  position: relative;
-  transform-style: preserve-3d;
-  width: calc(var(--t) * 3 + var(--gap) * 2);
-  height: calc(var(--t) * 2 + var(--gap));
-}
-.tile {
-  position: absolute; top: 0; left: 0;
-  width: var(--t); height: var(--t);
-  transform-style: preserve-3d;
-}
-.face, .side { position: absolute; }
-.face-front {
-  inset: 0;
-  transform: translateZ(var(--depth));
-  border-radius: 8px;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--c) 82%, #fff), var(--c) 55%, var(--cd));
-  border: 2px solid rgba(255,255,255,0.28);
-  box-shadow: inset 0 0 18px rgba(0,0,0,0.3);
-  display: grid; place-items: center;
-  font-size: calc(var(--t) * 0.36); color: rgba(255,255,255,0.78);
-  text-shadow: 0 2px 4px rgba(0,0,0,0.45);
-}
-.side { background: var(--cd); }
-.side-top    { top: 0; left: 0; width: 100%; height: var(--depth); transform-origin: top;    transform: rotateX(90deg);  filter: brightness(1.15); }
-.side-bottom { bottom: 0; left: 0; width: 100%; height: var(--depth); transform-origin: bottom; transform: rotateX(-90deg); filter: brightness(0.7); }
-.side-left   { top: 0; left: 0; width: var(--depth); height: 100%; transform-origin: left;   transform: rotateY(-90deg); filter: brightness(0.85); }
-.side-right  { top: 0; right: 0; width: var(--depth); height: 100%; transform-origin: right;  transform: rotateY(90deg);  filter: brightness(0.6); }
-.solved .face-front { box-shadow: inset 0 0 18px rgba(0,0,0,0.3), 0 0 22px rgba(240,185,74,0.5); }
-
-/* ---- HUD + buttons ---- */
-.hud { display: flex; gap: 1.4rem; justify-content: center; flex-wrap: wrap; color: var(--muted); min-height: 1.6em; }
-#status { color: var(--text); }
-.solved #status { color: var(--gold); font-weight: bold; }
-.actions { display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap; justify-content: center; }
+.row { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; margin-top: 0.7rem; }
 .btn {
-  font-family: inherit; font-size: 1rem; padding: 0.6em 1.3em; border-radius: 999px; cursor: pointer;
-  background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid rgba(255,255,255,0.22);
+  font-family: inherit; font-size: 0.95rem; padding: 0.55em 1.2em; border-radius: 10px; cursor: pointer;
+  background: linear-gradient(160deg, #3a3326, #231e14); color: var(--stone); border: 1px solid #6a5a35;
 }
-.btn:hover { background: rgba(255,255,255,0.12); }
-.btn-primary { background: linear-gradient(135deg, var(--gold), #c98b25); color: #241407; border: none; font-weight: bold; }
-.how { margin-top: 1.6rem; max-width: 40ch; color: var(--muted); font-size: 0.95rem; line-height: 1.5; }
-
-@media (prefers-reduced-motion: reduce) {
-  .solved .orb { animation: none; }
-  .rig { --rx: 12deg !important; --ry: -6deg !important; }
-}
+.btn:hover { background: linear-gradient(160deg, #54482f, #31291a); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn-primary { background: linear-gradient(135deg, #e6a24a, #b8692f); color: #24120a; border-color: #e6a24a; font-weight: bold; }
+.btn-primary:hover { background: linear-gradient(135deg, #f0b45c, #c9783c); }
+.btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.seg { gap: 0; }
+.seg .btn { border-radius: 0; margin-left: -1px; }
+.seg .btn:first-child { border-radius: 10px 0 0 10px; margin-left: 0; }
+.seg .btn:last-child { border-radius: 0 10px 10px 0; }
+.seg .btn[aria-pressed="true"] { background: linear-gradient(160deg, #8a5a2a, #5e3a18); color: var(--gold); border-color: var(--gold); position: relative; z-index: 1; }
+.how { margin-top: 1.4rem; max-width: 44ch; color: var(--muted); font-size: 0.93rem; line-height: 1.55; }
+.how b { color: var(--stone); }
 </style>
 </head>
 <body>
-<main class="app" id="app">
-  <header>
-    <div class="orb" id="orb" aria-hidden="true"></div>
-    <h1>The Sealed Orb</h1>
-    <p class="lede">The stones shift beneath your hands. Return them to the seal to wake the orb.</p>
-    <div class="seal" id="seal" aria-label="The seal: the goal arrangement"></div>
-  </header>
+<svg class="pyramid" viewBox="0 0 900 360" aria-hidden="true">
+  <polygon fill="#6f9d4a" points="0,360 0,330 90,330 90,300 190,300 190,265 290,265 290,230 380,230 380,195 410,195 410,150 490,150 490,195 520,195 520,230 610,230 610,265 710,265 710,300 810,300 810,330 900,330 900,360"/>
+</svg>
 
-  <section class="scene" id="scene" aria-label="Puzzle board">
-    <div class="rig" id="rig">
-      <div class="plate">
-        <div class="cols" id="cols"></div>
-        <div class="rows-l" id="rowsL"></div>
-        <div class="board" id="board"></div>
-        <div class="rows-r" id="rowsR"></div>
-      </div>
-    </div>
-  </section>
+<main class="app" id="app">
+  <p class="kicker">Temple of the Sealed Orb</p>
+  <h1>The Sun Orb</h1>
+  <p class="lede">The stones turn under your hand. Restore each side of the orb to a single glyph.</p>
+
+  <div class="stage">
+    <canvas id="orb" tabindex="0" role="img" aria-label="A stone ball made of 24 carved stones. Drag a stone to turn part of the ball. Drag empty space to spin the whole ball."></canvas>
+  </div>
 
   <div class="hud" aria-live="polite">
-    <span id="status">Restore the seal: match the picture above.</span>
-    <span id="moves">Moves: 0</span>
+    <p id="status">Drag a stone to turn it. Drag the empty space to spin the orb.</p>
+    <span id="moves">Turns: 0</span>
   </div>
 
-  <div class="actions">
+  <div class="row">
     <button class="btn" id="undo" type="button">Undo</button>
-    <button class="btn" id="reset" type="button">Restart</button>
+    <button class="btn" id="restart" type="button">Restart</button>
     <button class="btn btn-primary" id="shuffle" type="button">New puzzle</button>
   </div>
+  <div class="row seg" id="levels" role="group" aria-label="Difficulty">
+    <button class="btn" type="button" data-n="4" aria-pressed="false">Easy</button>
+    <button class="btn" type="button" data-n="7" aria-pressed="true">Medium</button>
+    <button class="btn" type="button" data-n="12" aria-pressed="false">Hard</button>
+  </div>
 
-  <p class="how">Slide a row left or right (the end stone wraps around), or flip a column to swap its two stones, until the board matches the seal. Each color has its own shape, so everyone can play.</p>
+  <p class="how"><b>Goal:</b> make every side of the ball show a single color and glyph. <b>Turn:</b> press a stone and drag along the ball; half of the orb turns with it. <b>Look around:</b> drag the empty space (or use the arrow keys) to spin the whole orb.</p>
 </main>
 
 <script>
 (() => {
-  const COLS = 3, ROWS = 2, GAP = 10, MS = matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 380;
-  // Stone i belongs in cell i. The seal (goal) is this arrangement.
-  const COLORS = [
-    { name: 'ruby',     c: '#e0405c', d: '#7d1428', g: '◆' },
-    { name: 'amber',    c: '#f08a2c', d: '#7a3d0a', g: '★' },
-    { name: 'citrine',  c: '#e8cf3d', d: '#7a6a0c', g: '■' },
-    { name: 'emerald',  c: '#2fb36d', d: '#10532f', g: '▲' },
-    { name: 'sapphire', c: '#3d7fe0', d: '#173b78', g: '●' },
-    { name: 'amethyst', c: '#9b5de5', d: '#47207a', g: '✦' },
+  // ---------- Palette & Maya glyphs (one per color so color-blind players can play) ----------
+  const STONES = [
+    { name: 'copper',    rgb: [201, 122, 58]  },
+    { name: 'gold',      rgb: [232, 184, 74]  },
+    { name: 'jade',      rgb: [74, 160, 92]   },
+    { name: 'turquoise', rgb: [52, 166, 176]  },
+    { name: 'lapis',     rgb: [52, 84, 168]   },
+    { name: 'cinnabar',  rgb: [168, 48, 62]   },
   ];
-  const MIN_PAR = 5;  // every puzzle needs at least this many moves
+  const circle = (cx, cy, r, n = 14) => Array.from({ length: n + 1 }, (_, i) => [cx + r * Math.cos(i / n * 2 * Math.PI), cy + r * Math.sin(i / n * 2 * Math.PI)]);
+  const GLYPHS = [
+    // copper: spiral
+    [[[-.8,.8],[.8,.8],[.8,-.8],[-.6,-.8],[-.6,.5],[.5,.5],[.5,-.5],[-.3,-.5],[-.3,.2],[.2,.2]]],
+    // gold: sun
+    [circle(0, 0, .42), [[0,.62],[0,.9]], [[0,-.62],[0,-.9]], [[.62,0],[.9,0]], [[-.62,0],[-.9,0]], circle(0, 0, .12, 8)],
+    // jade: stepped pyramid
+    [[[-.85,-.7],[-.85,-.4],[-.55,-.4],[-.55,-.1],[-.25,-.1],[-.25,.2],[.25,.2],[.25,-.1],[.55,-.1],[.55,-.4],[.85,-.4],[.85,-.7],[-.85,-.7]], [[-.14,.2],[-.14,.62],[.14,.62],[.14,.2]]],
+    // turquoise: Maya numeral (two bars, two dots)
+    [[[-.75,-.55],[.75,-.55],[.75,-.25],[-.75,-.25],[-.75,-.55]], [[-.75,-.05],[.75,-.05],[.75,.25],[-.75,.25],[-.75,-.05]], circle(-.4, .65, .15, 8), circle(.4, .65, .15, 8)],
+    // lapis: serpent zigzag
+    [[[-.9,-.45],[-.55,.45],[-.2,-.45],[.15,.45],[.5,-.45],[.85,.2]], circle(.85, .38, .14, 8)],
+    // cinnabar: ahau cross in a frame
+    [[[-.65,-.65],[.65,-.65],[.65,.65],[-.65,.65],[-.65,-.65]], [[-.65,0],[.65,0]], [[0,-.65],[0,.65]], circle(0, 0, .22, 10)],
+  ];
 
-  const app = document.getElementById('app');
-  const board = document.getElementById('board');
-  const statusEl = document.getElementById('status');
-  const movesEl = document.getElementById('moves');
-  const undoBtn = document.getElementById('undo');
-
-  // Each tile keeps its identity; cells[] maps board position -> tile.
-  const tiles = [];
-  let cells = new Array(ROWS * COLS);
-  let startLayout = [];
-  let startPar = 0;   // tile id per cell at the start of this puzzle
-  let history = [];
-  let busy = false;
-
-  const tf = (c, r, z = 0) =>
-    `translate3d(calc(${c} * (100% + ${GAP}px)), calc(${r} * (100% + ${GAP}px)), ${z}px)`;
-
-  function buildTiles() {
-    for (let i = 0; i < ROWS * COLS; i++) {
-      const color = COLORS[i];
-      const el = document.createElement('div');
-      el.className = 'tile';
-      el.style.setProperty('--c', color.c);
-      el.style.setProperty('--cd', color.d);
-      el.innerHTML = `<div class="side side-top"></div><div class="side side-bottom"></div>
-        <div class="side side-left"></div><div class="side side-right"></div>
-        <div class="face face-front" aria-label="${color.name}">${color.g}</div>`;
-      board.appendChild(el);
-      tiles.push({ id: i, color: i, r: 0, c: 0, el });
+  // ---------- Puzzle model ----------
+  // The ball is a 2x2 twist puzzle mapped onto a sphere: 24 stones, 6 colors.
+  // Cube coordinates keep every position exact; points are normalized onto the sphere to draw.
+  const stones = [];
+  const mod3 = n => ((n % 3) + 3) % 3;
+  function buildSolved() {
+    stones.length = 0;
+    let color = 0;
+    for (let i = 0; i < 3; i++) for (const s of [1, -1]) {
+      const j = (i + 1) % 3, k = (i + 2) % 3;
+      for (const a of [-.5, .5]) for (const b of [-.5, .5]) {
+        const c = [0, 0, 0]; c[i] = s; c[j] = a; c[k] = b;
+        const du = [0, 0, 0], dv = [0, 0, 0]; du[j] = 1; dv[k] = 1;
+        stones.push({ c, du, dv, color });
+      }
+      color++;
     }
   }
-
-  function place(tile, r, c) {
-    tile.r = r; tile.c = c;
-    cells[r * COLS + c] = tile;
-    tile.el.style.transform = tf(c, r);
-  }
-
-  function layoutSolved() {
-    cells = new Array(ROWS * COLS);
-    tiles.forEach(t => place(t, Math.floor(t.id / COLS), t.id % COLS));
-  }
-
-  // A move is { type: 'row', r, dir } or { type: 'col', c }.
-  function applyMove(move, animate) {
-    const next = [];   // { tile, r, c, lift }
-    if (move.type === 'row') {
-      for (let c = 0; c < COLS; c++) {
-        const tile = cells[move.r * COLS + c];
-        const nc = (c + move.dir + COLS) % COLS;
-        next.push({ tile, r: move.r, c: nc, lift: Math.abs(nc - c) > 1 });
-      }
-    } else {
-      for (let r = 0; r < ROWS; r++) {
-        const tile = cells[r * COLS + move.c];
-        next.push({ tile, r: ROWS - 1 - r, c: move.c, lift: r === 0 });
-      }
+  const rotVec = (v, a, th) => {
+    const j = mod3(a + 1), k = mod3(a + 2), cs = Math.cos(th), sn = Math.sin(th), r = v.slice();
+    r[j] = v[j] * cs - v[k] * sn; r[k] = v[j] * sn + v[k] * cs; return r;
+  };
+  const snap = v => v.map(x => Math.round(x * 2) / 2 + 0);
+  const inCap = (st, m) => st.c[m.a] * m.side > 0;
+  function applyMoveExact(m) {
+    for (const st of stones) if (inCap(st, m)) {
+      const th = m.dir * Math.PI / 2;
+      st.c = snap(rotVec(st.c, m.a, th)); st.du = snap(rotVec(st.du, m.a, th)); st.dv = snap(rotVec(st.dv, m.a, th));
     }
-    const anims = [];
-    next.forEach(({ tile, r, c, lift }) => {
-      const from = tf(tile.c, tile.r), to = tf(c, r);
-      if (animate) {
-        const mid = tf((tile.c + c) / 2, (tile.r + r) / 2, lift ? 70 : 0);
-        anims.push(tile.el.animate([{ transform: from }, { transform: mid }, { transform: to }],
-          { duration: MS, easing: 'cubic-bezier(.3,.7,.3,1)' }));
-      }
-    });
-    next.forEach(({ tile, r, c }) => { cells[tile.r * COLS + tile.c] = null; });
-    next.forEach(({ tile, r, c }) => place(tile, r, c));
-    return anims;
   }
-
-  const inverse = m => (m.type === 'row' ? { ...m, dir: -m.dir } : m);
-  const randomMove = () => Math.random() < 0.5
-    ? { type: 'row', r: Math.floor(Math.random() * ROWS), dir: Math.random() < 0.5 ? -1 : 1 }
-    : { type: 'col', c: Math.floor(Math.random() * COLS) };
-
-  const isSolved = () => cells.every((t, i) => t.id === i);
-
-  // Fewest moves from every arrangement back to the seal (breadth-first search).
-  const ALL_MOVES = [];
-  for (let r = 0; r < ROWS; r++) ALL_MOVES.push({ type: 'row', r, dir: -1 }, { type: 'row', r, dir: 1 });
-  for (let c = 0; c < COLS; c++) ALL_MOVES.push({ type: 'col', c });
-  function step(s, m) {
-    const n = s.slice();
-    if (m.type === 'row') for (let c = 0; c < COLS; c++) n[m.r * COLS + (c + m.dir + COLS) % COLS] = s[m.r * COLS + c];
-    else { n[m.c] = s[COLS + m.c]; n[COLS + m.c] = s[m.c]; }
-    return n;
-  }
-  const DIST = new Map([['0,1,2,3,4,5', 0]]);
-  for (let frontier = [[0, 1, 2, 3, 4, 5]]; frontier.length;) {
-    const next = [];
-    for (const s of frontier) for (const m of ALL_MOVES) {
-      const n = step(s, m), k = n.join();
-      if (!DIST.has(k)) { DIST.set(k, DIST.get(s.join()) + 1); next.push(n); }
+  const inverse = m => ({ ...m, dir: -m.dir });
+  function isSolved() {
+    const faces = new Map();
+    for (const st of stones) {
+      const i = st.c.findIndex(x => Math.abs(x) === 1);
+      const key = i * 2 + (st.c[i] > 0 ? 1 : 0);
+      if (faces.has(key) && faces.get(key) !== st.color) return false;
+      faces.set(key, st.color);
     }
-    frontier = next;
+    return true;
   }
-  const par = () => DIST.get(cells.map(t => t.id).join());
+
+  let history = [], startState = [], level = 7, busy = false, anim = null, lastScramble = [];
+
+  function snapshot() { return stones.map(s => ({ c: s.c.slice(), du: s.du.slice(), dv: s.dv.slice(), color: s.color })); }
+  function restore(snap_) { snap_.forEach((s, i) => { stones[i].c = s.c.slice(); stones[i].du = s.du.slice(); stones[i].dv = s.dv.slice(); }); }
 
   function scramble() {
     do {
-      layoutSolved();
-      let last = null;
-      for (let i = 0; i < 30; i++) {
-        let m = randomMove();
-        if (last && JSON.stringify(inverse(last)) === JSON.stringify(m)) continue;
-        applyMove(m, false);
-        last = m;
+      buildSolved(); lastScramble = [];
+      let prev = -1;
+      for (let n = 0; n < level; n++) {
+        let a; do { a = Math.floor(Math.random() * 3); } while (a === prev);
+        prev = a;
+        const mv = { a, side: Math.random() < 0.5 ? 1 : -1, dir: Math.random() < 0.5 ? 1 : -1 };
+        lastScramble.push(mv); applyMoveExact(mv);
       }
-    } while (par() < MIN_PAR);
-    startLayout = cells.map(t => t.id);
-    startPar = par();
-    history = [];
-    refresh();
+    } while (isSolved());
+    startState = snapshot(); history = []; refresh();
   }
 
-  function restart() {
-    if (busy) return;
-    const pos = new Map(startLayout.map((id, i) => [id, i]));
-    cells = new Array(ROWS * COLS);
-    tiles.forEach(t => {
-      const i = pos.get(t.id);
-      const from = tf(t.c, t.r);
-      place(t, Math.floor(i / COLS), i % COLS);
-      t.el.animate([{ transform: from }, { transform: tf(t.c, t.r) }], { duration: MS, easing: 'ease' });
-    });
-    history = [];
-    refresh();
+  // ---------- View (trackball) ----------
+  let R = [[1,0,0],[0,1,0],[0,0,1]];
+  const mmul = (A, B) => A.map((_, i) => B[0].map((__, j) => A[i][0]*B[0][j] + A[i][1]*B[1][j] + A[i][2]*B[2][j]));
+  const axisRot = (axis, ang) => {
+    const c = Math.cos(ang), s = Math.sin(ang);
+    if (axis === 'x') return [[1,0,0],[0,c,-s],[0,s,c]];
+    return [[c,0,s],[0,1,0],[-s,0,c]];
+  };
+  const mvec = (M, v) => [M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2], M[1][0]*v[0]+M[1][1]*v[1]+M[1][2]*v[2], M[2][0]*v[0]+M[2][1]*v[1]+M[2][2]*v[2]];
+  const tvec = (M, v) => [M[0][0]*v[0]+M[1][0]*v[1]+M[2][0]*v[2], M[0][1]*v[0]+M[1][1]*v[1]+M[2][1]*v[2], M[0][2]*v[0]+M[1][2]*v[1]+M[2][2]*v[2]];
+  const norm = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0]/l, v[1]/l, v[2]/l]; };
+  R = mmul(axisRot('x', 0.55), axisRot('y', -0.65));
+  let spin = { x: 0, y: 0 };
+
+  // ---------- Canvas ----------
+  const cv = document.getElementById('orb');
+  const ctx = cv.getContext('2d');
+  let S = 0, dpr = 1, cx = 0, cy = 0, Rpx = 0, cradle = null, dirty = true;
+  const LIGHT = norm([-0.45, 0.6, 0.65]);
+  const HALF = norm([LIGHT[0], LIGHT[1], LIGHT[2] + 1]);
+
+  function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  function buildCradle() {
+    const c = document.createElement('canvas'); c.width = c.height = Math.round(S * dpr);
+    const g = c.getContext('2d'); g.scale(dpr, dpr);
+    const rand = rng(7);
+    // copper ring
+    const grd = g.createRadialGradient(cx, cy, Rpx * 1.04, cx, cy, Rpx * 1.22);
+    grd.addColorStop(0, '#7a3b17'); grd.addColorStop(0.35, '#e09a5a'); grd.addColorStop(0.7, '#b8692f'); grd.addColorStop(1, '#5a2a0e');
+    g.beginPath(); g.arc(cx, cy, Rpx * 1.22, 0, Math.PI * 2); g.arc(cx, cy, Rpx * 1.04, 0, Math.PI * 2, true);
+    g.fillStyle = grd; g.fill('evenodd');
+    g.fillStyle = 'rgba(40,18,6,0.7)';
+    for (let i = 0; i < 28; i++) { const a = i / 28 * Math.PI * 2; g.beginPath(); g.arc(cx + Math.cos(a) * Rpx * 1.13, cy + Math.sin(a) * Rpx * 1.13, Rpx * 0.018, 0, Math.PI * 2); g.fill(); }
+    // ring of weathered stones with moss
+    const rock = (x, y, w, h, rot, tone) => {
+      g.save(); g.translate(x, y); g.rotate(rot);
+      g.beginPath();
+      const pts = 7;
+      for (let i = 0; i < pts; i++) {
+        const a = i / pts * Math.PI * 2, rr = 0.82 + rand() * 0.3;
+        const px = Math.cos(a) * w * rr, py = Math.sin(a) * h * rr;
+        i ? g.lineTo(px, py) : g.moveTo(px, py);
+      }
+      g.closePath();
+      const lg = g.createLinearGradient(-w, -h, w, h);
+      lg.addColorStop(0, `rgb(${tone + 45},${tone + 40},${tone + 25})`); lg.addColorStop(1, `rgb(${tone - 25},${tone - 28},${tone - 38})`);
+      g.fillStyle = lg; g.fill(); g.lineWidth = 1.2; g.strokeStyle = 'rgba(15,10,5,0.7)'; g.stroke();
+      if (rand() < 0.65) { g.beginPath(); g.ellipse(-w * 0.1, -h * 0.55, w * 0.7, h * 0.32, 0, 0, Math.PI * 2); g.fillStyle = 'rgba(96,142,58,0.75)'; g.fill(); }
+      g.restore();
+    };
+    for (let i = 0; i < 26; i++) {
+      const a = i / 26 * Math.PI * 2 + (rand() - 0.5) * 0.08, rad = Rpx * (1.36 + (rand() - 0.5) * 0.08);
+      rock(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad, Rpx * (0.17 + rand() * 0.07), Rpx * (0.12 + rand() * 0.06), a + Math.PI / 2 + (rand() - 0.5) * 0.4, 118 + rand() * 30);
+    }
+    for (let i = 0; i < 22; i++) {
+      const a = rand() * Math.PI * 2, rad = Rpx * (1.58 + rand() * 0.12);
+      rock(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad, Rpx * (0.05 + rand() * 0.05), Rpx * (0.04 + rand() * 0.04), rand() * 6, 100 + rand() * 30);
+    }
+    return c;
   }
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = cv.clientWidth; S = w;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(w * dpr);
+    cx = S / 2; cy = S / 2; Rpx = S * 0.3;
+    cradle = buildCradle(); dirty = true;
+  }
+
+  // ---------- Drawing ----------
+  const N = 4;           // sub-divisions per stone edge (for the curved look)
+  const MARGIN = 0.07;   // groove between stones
+  const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  let glow = 0, t0 = performance.now();
+
+  const project = p => { const v = mvec(R, p); return { x: cx + v[0] * Rpx, y: cy - v[1] * Rpx, z: v[2], v }; };
+  function surfacePoint(st, a, b, m, th) {
+    let q = [st.c[0] + st.du[0] * a + st.dv[0] * b, st.c[1] + st.du[1] * a + st.dv[1] * b, st.c[2] + st.du[2] * a + st.dv[2] * b];
+    if (m) q = rotVec(q, m.a, th);
+    return norm(q);
+  }
+
+  function drawStone(st, idx, m, th) {
+    const turning = m && inCap(st, m);
+    const mm = turning ? m : null;
+    const h = 0.5 - MARGIN, base = STONES[st.color].rgb;
+    const grid = [];
+    for (let i = 0; i <= N; i++) { const row = []; for (let j = 0; j <= N; j++) row.push(project(surfacePoint(st, -h + 2 * h * i / N, -h + 2 * h * j / N, mm, th))); grid.push(row); }
+    const centerZ = grid[N >> 1][N >> 1].z;
+    if (centerZ < -0.25) return;
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const q = [grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]];
+      const zc = (q[0].z + q[1].z + q[2].z + q[3].z) / 4;
+      if (zc < 0) continue;
+      const n = norm([(q[0].v[0] + q[2].v[0]), (q[0].v[1] + q[2].v[1]), (q[0].v[2] + q[2].v[2])]);
+      const diff = Math.max(0, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]);
+      const spec = Math.pow(Math.max(0, n[0] * HALF[0] + n[1] * HALF[1] + n[2] * HALF[2]), 28);
+      const grain = 1 + (Math.sin(idx * 12.9898 + i * 78.233 + j * 37.719) * 43758.5453 % 1) * 0.07;
+      const lit = (0.34 + 0.8 * diff) * (0.55 + 0.45 * Math.pow(zc, 0.6)) * grain;
+      const col = `rgb(${Math.min(255, base[0] * lit + spec * 70) | 0},${Math.min(255, base[1] * lit + spec * 70) | 0},${Math.min(255, base[2] * lit + spec * 70) | 0})`;
+      ctx.beginPath(); ctx.moveTo(q[0].x, q[0].y); ctx.lineTo(q[1].x, q[1].y); ctx.lineTo(q[2].x, q[2].y); ctx.lineTo(q[3].x, q[3].y); ctx.closePath();
+      ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 0.8; ctx.strokeStyle = col; ctx.stroke();
+    }
+    // chiseled edge
+    ctx.beginPath();
+    const edge = [];
+    for (let i = 0; i <= N; i++) edge.push(grid[i][0]);
+    for (let j = 1; j <= N; j++) edge.push(grid[N][j]);
+    for (let i = N - 1; i >= 0; i--) edge.push(grid[i][N]);
+    for (let j = N - 1; j > 0; j--) edge.push(grid[0][j]);
+    let started = false;
+    for (const p of edge) { if (p.z < 0) { started = false; continue; } started ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); started = true; }
+    ctx.lineWidth = Math.max(1, Rpx * 0.012); ctx.strokeStyle = 'rgba(20,12,6,0.55)'; ctx.stroke();
+
+    // carved glyph
+    if (centerZ > 0.1) {
+      const gs = 0.3, lw = Math.max(1.4, Rpx * 0.028);
+      const stroke = (dx, dy, style, width) => {
+        ctx.strokeStyle = style; ctx.lineWidth = width; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        for (const line of GLYPHS[st.color]) {
+          ctx.beginPath(); let ok = true;
+          line.forEach(([gx, gy], k) => {
+            const p = project(surfacePoint(st, gx * gs, gy * gs, mm, th));
+            if (p.z < 0) ok = false;
+            k ? ctx.lineTo(p.x + dx, p.y + dy) : ctx.moveTo(p.x + dx, p.y + dy);
+          });
+          if (ok) ctx.stroke();
+        }
+      };
+      stroke(lw * 0.45, lw * 0.55, 'rgba(255,238,205,0.38)', lw);
+      stroke(0, 0, 'rgba(26,14,6,0.72)', lw);
+    }
+  }
+
+  function draw(now) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, S, S);
+    if (cradle) ctx.drawImage(cradle, 0, 0, S, S);
+    if (glow > 0.01) {
+      const pulse = 0.8 + 0.2 * Math.sin(now / 350);
+      const g = ctx.createRadialGradient(cx, cy, Rpx * 0.6, cx, cy, Rpx * 1.7);
+      g.addColorStop(0, `rgba(255,214,110,${0.55 * glow * pulse})`); g.addColorStop(1, 'rgba(255,214,110,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+    }
+    // dark core so grooves between stones read as shadow
+    const core = ctx.createRadialGradient(cx - Rpx * 0.3, cy - Rpx * 0.3, Rpx * 0.1, cx, cy, Rpx);
+    core.addColorStop(0, '#2a2218'); core.addColorStop(1, '#0c0905');
+    ctx.beginPath(); ctx.arc(cx, cy, Rpx * 1.005, 0, Math.PI * 2); ctx.fillStyle = core; ctx.fill();
+
+    let m = null, th = 0;
+    if (anim) { m = anim.move; th = m.dir * Math.PI / 2 * ease(Math.min(1, (now - anim.t0) / anim.dur)); }
+    stones.forEach((st, i) => drawStone(st, i, m, th));
+  }
+
+  function frame(now) {
+    const dt = Math.min(50, now - t0); t0 = now;
+    if (anim && now - anim.t0 >= anim.dur) finishAnim();
+    if (!drag || drag.mode !== 'view') {
+      if (Math.abs(spin.x) > 1e-4 || Math.abs(spin.y) > 1e-4) {
+        R = mmul(axisRot('x', spin.x), mmul(axisRot('y', spin.y), R)); spin.x *= 0.92; spin.y *= 0.92; dirty = true;
+      }
+    }
+    const solved = app.classList.contains('solved');
+    const targetGlow = solved ? 1 : 0;
+    if (Math.abs(glow - targetGlow) > 0.002) { glow += (targetGlow - glow) * Math.min(1, dt / 350); dirty = true; }
+    if (solved) { R = mmul(axisRot('y', 0.004), R); dirty = true; }
+    if (anim || dirty) { draw(now); dirty = !!anim; }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Moves ----------
+  const app = document.getElementById('app');
+  const statusEl = document.getElementById('status');
+  const movesEl = document.getElementById('moves');
+  const undoBtn = document.getElementById('undo');
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function refresh() {
     const solved = isSolved();
     app.classList.toggle('solved', solved);
-    const best = par();
-    const perfect = solved && history.length === startPar;
     statusEl.textContent = solved
-      ? (perfect ? 'The orb awakens! Fewest moves possible!' : 'The orb awakens! Well done.')
-      : 'Restore the seal: match the picture above.';
-    movesEl.textContent = solved ? `Moves: ${history.length} (fewest: ${startPar})` : `Moves: ${history.length}`;
-    undoBtn.disabled = history.length === 0;
+      ? 'The Sun Orb awakens! Every side is restored.'
+      : (history.length ? 'Keep turning. Match each side to one glyph.' : 'Drag a stone to turn it. Drag the empty space to spin the orb.');
+    movesEl.textContent = `Turns: ${history.length}`;
+    undoBtn.disabled = history.length === 0 || busy;
+    dirty = true;
   }
 
-  function doMove(move, record = true) {
+  function startMove(move, record) {
     if (busy) return;
-    busy = true;
-    setControls(true);
-    const anims = applyMove(move, true);
-    if (record) history.push(move);
-    setTimeout(() => { busy = false; setControls(false); refresh(); }, MS);
+    busy = true; anim = { move, t0: performance.now(), dur: reduceMotion ? 1 : 280, record };
+    undoBtn.disabled = true;
+  }
+  function finishAnim() {
+    const { move, record } = anim;
+    applyMoveExact(move);
+    if (record === 'push') history.push(move);
+    if (record === 'pop') history.pop();
+    anim = null; busy = false; refresh();
   }
 
-  function undo() {
-    if (busy || !history.length) return;
-    const last = history.pop();
-    busy = true; setControls(true);
-    applyMove(inverse(last), true);
-    setTimeout(() => { busy = false; setControls(false); refresh(); }, MS);
+  // ---------- Input ----------
+  let drag = null;
+  const pos = e => { const b = cv.getBoundingClientRect(); return { x: (e.clientX - b.left) * S / b.width, y: (e.clientY - b.top) * S / b.height }; };
+
+  function hitStone(p) {
+    const ux = (p.x - cx) / Rpx, uy = (cy - p.y) / Rpx, r2 = ux * ux + uy * uy;
+    if (r2 > 1) return null;
+    const q = tvec(R, [ux, uy, Math.sqrt(1 - r2)]);
+    const mx = Math.max(Math.abs(q[0]), Math.abs(q[1]), Math.abs(q[2]));
+    const pc = q.map(x => x / mx);
+    for (const st of stones) {
+      const i = st.c.findIndex(x => Math.abs(x) === 1);
+      if (Math.abs(pc[i] - st.c[i]) > 1e-6) continue;
+      const j = (i + 1) % 3, k = (i + 2) % 3;
+      if (Math.abs(pc[j] - st.c[j]) <= 0.5 + 1e-9 && Math.abs(pc[k] - st.c[k]) <= 0.5 + 1e-9) return st;
+    }
+    return null;
   }
 
-  // ---- Controls ----
-  const allCtl = [];
-  function makeBtn(parent, label, text, move) {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'ctl'; b.textContent = text;
-    b.setAttribute('aria-label', label);
-    b.addEventListener('click', () => doMove(move));
-    parent.appendChild(b); allCtl.push(b);
-  }
-  function setControls(disabled) { allCtl.forEach(b => b.disabled = disabled); }
-
-  for (let c = 0; c < COLS; c++) makeBtn(document.getElementById('cols'), `Flip column ${c + 1}`, '⇅', { type: 'col', c });
-  for (let r = 0; r < ROWS; r++) {
-    makeBtn(document.getElementById('rowsL'), `Slide row ${r + 1} left`, '◀', { type: 'row', r, dir: -1 });
-    makeBtn(document.getElementById('rowsR'), `Slide row ${r + 1} right`, '▶', { type: 'row', r, dir: 1 });
+  function chooseMove(st, dx, dy) {
+    const p = norm(st.c), p0 = project(p);
+    const dl = Math.hypot(dx, dy); let best = null;
+    for (let a = 0; a < 3; a++) {
+      const e = [0, 0, 0]; e[a] = 1;
+      const t = [e[1] * p[2] - e[2] * p[1], e[2] * p[0] - e[0] * p[2], e[0] * p[1] - e[1] * p[0]];
+      const q = project(norm([p[0] + 0.12 * t[0], p[1] + 0.12 * t[1], p[2] + 0.12 * t[2]]));
+      const sx = q.x - p0.x, sy = q.y - p0.y, sl = Math.hypot(sx, sy);
+      if (sl < 0.4) continue;
+      const dot = (sx * dx + sy * dy) / (sl * dl);
+      if (!best || Math.abs(dot) > Math.abs(best.dot)) best = { a, dot };
+    }
+    return best && { a: best.a, side: st.c[best.a] > 0 ? 1 : -1, dir: best.dot > 0 ? 1 : -1 };
   }
 
-  document.getElementById('undo').addEventListener('click', undo);
-  document.getElementById('reset').addEventListener('click', restart);
+  cv.addEventListener('pointerdown', e => {
+    cv.setPointerCapture(e.pointerId);
+    const p = pos(e), st = busy ? null : hitStone(p);
+    drag = st ? { mode: 'turn', st, x0: p.x, y0: p.y } : { mode: 'view', x: p.x, y: p.y };
+    spin = { x: 0, y: 0 };
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const p = pos(e);
+    if (drag.mode === 'view') {
+      const dx = p.x - drag.x, dy = p.y - drag.y; drag.x = p.x; drag.y = p.y;
+      const k = 0.011 * (360 / S);
+      R = mmul(axisRot('x', dy * k), mmul(axisRot('y', dx * k), R));
+      spin = { x: dy * k * 0.5, y: dx * k * 0.5 }; dirty = true;
+    } else if (drag.mode === 'turn') {
+      const dx = p.x - drag.x0, dy = p.y - drag.y0;
+      if (Math.hypot(dx, dy) > Math.max(14, S * 0.03)) {
+        const m = chooseMove(drag.st, dx, dy);
+        drag = { mode: 'done' };
+        if (m) startMove(m, 'push');
+      }
+    }
+  });
+  const endDrag = () => { drag = null; };
+  cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+  cv.addEventListener('keydown', e => {
+    const k = { ArrowLeft: [0, -0.25], ArrowRight: [0, 0.25], ArrowUp: [-0.25, 0], ArrowDown: [0.25, 0] }[e.key];
+    if (!k) return; e.preventDefault();
+    R = mmul(axisRot('x', k[0]), mmul(axisRot('y', k[1]), R)); dirty = true;
+  });
+
+  undoBtn.addEventListener('click', () => { if (busy || !history.length) return; startMove(inverse(history[history.length - 1]), 'pop'); });
+  document.getElementById('restart').addEventListener('click', () => { if (busy) return; restore(startState); history = []; refresh(); });
   document.getElementById('shuffle').addEventListener('click', () => { if (!busy) scramble(); });
+  document.querySelectorAll('#levels .btn').forEach(b => b.addEventListener('click', () => {
+    if (busy) return;
+    level = +b.dataset.n;
+    document.querySelectorAll('#levels .btn').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    scramble();
+  }));
 
-  // ---- Tilt the whole board with the pointer ----
-  const scene = document.getElementById('scene');
-  const rig = document.getElementById('rig');
-  scene.addEventListener('pointermove', e => {
-    const b = scene.getBoundingClientRect();
-    const x = (e.clientX - b.left) / b.width - 0.5;
-    const y = (e.clientY - b.top) / b.height - 0.5;
-    rig.style.setProperty('--ry', `${(x * 36).toFixed(1)}deg`);
-    rig.style.setProperty('--rx', `${(18 - y * 30).toFixed(1)}deg`);
-  });
-  scene.addEventListener('pointerleave', () => {
-    rig.style.removeProperty('--rx'); rig.style.removeProperty('--ry');
-  });
-  rig.style.transition = 'transform 0.25s ease-out';
-
-  const seal = document.getElementById('seal');
-  COLORS.forEach(col => {
-    const s = document.createElement('span');
-    s.style.setProperty('--c', col.c); s.style.setProperty('--cd', col.d);
-    s.textContent = col.g; s.title = col.name;
-    seal.appendChild(s);
-  });
-
-  buildTiles();
-  scramble();
+  new ResizeObserver(resize).observe(cv);
+  buildSolved(); scramble(); resize();
+  if (location.search.includes('debug')) window.__orb = { stones, get lastScramble() { return lastScramble; }, get history() { return history; }, startMove, isSolved, inverse, get busy() { return busy; } };
+  requestAnimationFrame(frame);
 })();
 </script>
 </body>
