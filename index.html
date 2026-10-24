@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Sun Orb | Temple Puzzle</title>
-<meta name="description" content="A 3D stone-ball twist puzzle in Maya style. Drag the stones to turn the orb until every side shows one glyph.">
+<meta name="description" content="A shared 3D stone-ball twist puzzle in Maya style. Everyone with the link turns the same orb, together, in real time.">
 <meta name="theme-color" content="#0a1a17">
 <style>
 :root {
@@ -37,6 +37,7 @@ body::after { bottom: 0; transform: scaleY(-1); }
   position: fixed; left: 50%; bottom: 14px; width: min(900px, 120vw); transform: translateX(-50%);
   opacity: 0.1; pointer-events: none; z-index: 0;
 }
+#dust { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 4; }
 .app {
   position: relative; z-index: 1; width: 100%; max-width: 640px;
   padding: 2rem 1rem 3.4rem; display: flex; flex-direction: column; align-items: center; text-align: center;
@@ -56,6 +57,12 @@ h1 {
 .hud { min-height: 3.2rem; color: var(--muted); }
 #status { color: var(--stone); margin: 0 0 0.2rem; }
 .solved #status { color: var(--gold); font-weight: bold; text-shadow: 0 0 14px rgba(240,195,90,0.5); }
+.reveal {
+  margin: 0.2rem 0 0; max-width: 40ch; color: var(--gold); font-style: italic; font-size: 1.1rem;
+  opacity: 0; transform: translateY(6px); transition: opacity 1.4s ease, transform 1.4s ease; min-height: 1.6em;
+  text-shadow: 0 0 18px rgba(240,195,90,0.5);
+}
+.opened .reveal { opacity: 1; transform: none; }
 
 .row { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; margin-top: 0.7rem; }
 .btn {
@@ -72,45 +79,95 @@ h1 {
 .seg .btn:first-child { border-radius: 10px 0 0 10px; margin-left: 0; }
 .seg .btn:last-child { border-radius: 0 10px 10px 0; }
 .seg .btn[aria-pressed="true"] { background: linear-gradient(160deg, #8a5a2a, #5e3a18); color: var(--gold); border-color: var(--gold); position: relative; z-index: 1; }
+
+#net { font-size: 0.8rem; color: var(--muted); margin: 0.9rem 0 0; }
+#net::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #777; margin-right: 0.45em; }
+#net.live::before { background: #62c26f; box-shadow: 0 0 8px #62c26f; }
+#net.solo::before { background: #d99a2e; }
+
+.dm { margin-top: 1rem; width: 100%; max-width: 460px; border: 1px solid #4a3e24; border-radius: 12px; background: rgba(0,0,0,0.25); text-align: left; }
+.dm summary { cursor: pointer; padding: 0.7rem 1rem; color: var(--copper); letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.78rem; }
+.dm-body { padding: 0 1rem 1rem; display: grid; gap: 0.8rem; }
+.dm label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 0.3rem; }
+.dm input[type=text] {
+  width: 100%; padding: 0.55em 0.8em; border-radius: 8px; border: 1px solid #6a5a35;
+  background: #14100a; color: var(--stone); font-family: inherit; font-size: 0.95rem;
+}
+.dm .row { margin-top: 0; justify-content: flex-start; }
 .how { margin-top: 1.4rem; max-width: 44ch; color: var(--muted); font-size: 0.93rem; line-height: 1.55; }
 .how b { color: var(--stone); }
 </style>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
 <body>
 <svg class="pyramid" viewBox="0 0 900 360" aria-hidden="true">
   <polygon fill="#6f9d4a" points="0,360 0,330 90,330 90,300 190,300 190,265 290,265 290,230 380,230 380,195 410,195 410,150 490,150 490,195 520,195 520,230 610,230 610,265 710,265 710,300 810,300 810,330 900,330 900,360"/>
 </svg>
+<canvas id="dust" aria-hidden="true"></canvas>
 
 <main class="app" id="app">
   <p class="kicker">Temple of the Sealed Orb</p>
   <h1>The Sun Orb</h1>
   <p class="lede">The stones turn under your hand. Restore each side of the orb to a single glyph.</p>
 
-  <div class="stage">
+  <div class="stage" id="stage">
     <canvas id="orb" tabindex="0" role="img" aria-label="A stone ball made of 24 carved stones. Drag a stone to turn part of the ball. Drag empty space to spin the whole ball."></canvas>
   </div>
 
   <div class="hud" aria-live="polite">
     <p id="status">Drag a stone to turn it. Drag the empty space to spin the orb.</p>
     <span id="moves">Turns: 0</span>
+    <p class="reveal" id="reveal"></p>
   </div>
 
   <div class="row">
-    <button class="btn" id="undo" type="button">Undo</button>
-    <button class="btn" id="restart" type="button">Restart</button>
-    <button class="btn btn-primary" id="shuffle" type="button">New puzzle</button>
+    <button class="btn" id="undo" type="button">Undo last turn</button>
   </div>
-  <div class="row seg" id="levels" role="group" aria-label="Difficulty">
-    <button class="btn" type="button" data-n="4" aria-pressed="false">Easy</button>
-    <button class="btn" type="button" data-n="7" aria-pressed="true">Medium</button>
-    <button class="btn" type="button" data-n="12" aria-pressed="false">Hard</button>
-  </div>
+  <p id="net">Connecting...</p>
 
-  <p class="how"><b>Goal:</b> make every side of the ball show a single color and glyph. <b>Turn:</b> press a stone and drag along the ball; half of the orb turns with it. <b>Look around:</b> drag the empty space (or use the arrow keys) to spin the whole orb.</p>
+  <details class="dm" id="dm">
+    <summary>DM controls</summary>
+    <div class="dm-body">
+      <div class="row">
+        <button class="btn" id="copylink" type="button">Copy player link</button>
+        <button class="btn" id="restart" type="button">Restart puzzle</button>
+      </div>
+      <div>
+        <label>Start a brand new puzzle (everyone's orb resets):</label>
+        <div class="row seg" id="levels" role="group" aria-label="Difficulty">
+          <button class="btn" type="button" data-n="3" aria-pressed="false">Easy</button>
+          <button class="btn" type="button" data-n="5" aria-pressed="true">Medium</button>
+          <button class="btn" type="button" data-n="8" aria-pressed="false">Hard</button>
+          <button class="btn btn-primary" id="shuffle" type="button">New puzzle</button>
+        </div>
+      </div>
+      <div>
+        <label for="revealText">Message shown when the gate opens:</label>
+        <div class="row">
+          <input type="text" id="revealText" maxlength="200" placeholder="Light floods the chamber...">
+          <button class="btn" id="saveReveal" type="button">Save</button>
+        </div>
+      </div>
+      <p id="roomInfo" style="margin:0;font-size:0.8rem;color:var(--muted)"></p>
+    </div>
+  </details>
+
+  <p class="how"><b>Goal:</b> make every side of the ball show a single color and glyph. <b>Turn:</b> press a stone and drag along the ball; half of the orb turns with it. <b>Look around:</b> drag the empty space (or use the arrow keys) to spin the orb. Everyone with this link is turning the same orb at the same time.</p>
 </main>
 
 <script>
 (() => {
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAnMtB4mvPqzhPq5rtgQ-6XgjY1uaz1mp0",
+    authDomain: "ash-ttrpg.firebaseapp.com",
+    databaseURL: "https://ash-ttrpg-default-rtdb.firebaseio.com",
+    projectId: "ash-ttrpg",
+    appId: "1:472699226703:web:9d03a58e26a258b1e1383a"
+  };
+  const DEFAULT_REVEAL = 'Light floods the chamber. The way forward is open.';
+  const DEFAULT_LEVEL = 5;
+
   // ---------- Palette & Maya glyphs (one per color so color-blind players can play) ----------
   const STONES = [
     { name: 'copper',    rgb: [201, 122, 58]  },
@@ -122,37 +179,30 @@ h1 {
   ];
   const circle = (cx, cy, r, n = 14) => Array.from({ length: n + 1 }, (_, i) => [cx + r * Math.cos(i / n * 2 * Math.PI), cy + r * Math.sin(i / n * 2 * Math.PI)]);
   const GLYPHS = [
-    // copper: spiral
     [[[-.8,.8],[.8,.8],[.8,-.8],[-.6,-.8],[-.6,.5],[.5,.5],[.5,-.5],[-.3,-.5],[-.3,.2],[.2,.2]]],
-    // gold: sun
     [circle(0, 0, .42), [[0,.62],[0,.9]], [[0,-.62],[0,-.9]], [[.62,0],[.9,0]], [[-.62,0],[-.9,0]], circle(0, 0, .12, 8)],
-    // jade: stepped pyramid
     [[[-.85,-.7],[-.85,-.4],[-.55,-.4],[-.55,-.1],[-.25,-.1],[-.25,.2],[.25,.2],[.25,-.1],[.55,-.1],[.55,-.4],[.85,-.4],[.85,-.7],[-.85,-.7]], [[-.14,.2],[-.14,.62],[.14,.62],[.14,.2]]],
-    // turquoise: Maya numeral (two bars, two dots)
     [[[-.75,-.55],[.75,-.55],[.75,-.25],[-.75,-.25],[-.75,-.55]], [[-.75,-.05],[.75,-.05],[.75,.25],[-.75,.25],[-.75,-.05]], circle(-.4, .65, .15, 8), circle(.4, .65, .15, 8)],
-    // lapis: serpent zigzag
     [[[-.9,-.45],[-.55,.45],[-.2,-.45],[.15,.45],[.5,-.45],[.85,.2]], circle(.85, .38, .14, 8)],
-    // cinnabar: ahau cross in a frame
     [[[-.65,-.65],[.65,-.65],[.65,.65],[-.65,.65],[-.65,-.65]], [[-.65,0],[.65,0]], [[0,-.65],[0,.65]], circle(0, 0, .22, 10)],
   ];
 
   // ---------- Puzzle model ----------
-  // The ball is a 2x2 twist puzzle mapped onto a sphere: 24 stones, 6 colors.
-  // Cube coordinates keep every position exact; points are normalized onto the sphere to draw.
-  const stones = [];
+  // A 2x2 twist puzzle mapped onto a sphere: 24 stones, 6 colors. Cube coordinates keep
+  // positions exact; points are normalized onto the sphere only when drawing.
   const mod3 = n => ((n % 3) + 3) % 3;
-  function buildSolved() {
-    stones.length = 0;
-    let color = 0;
+  function makeSolved() {
+    const arr = []; let color = 0;
     for (let i = 0; i < 3; i++) for (const s of [1, -1]) {
       const j = (i + 1) % 3, k = (i + 2) % 3;
       for (const a of [-.5, .5]) for (const b of [-.5, .5]) {
         const c = [0, 0, 0]; c[i] = s; c[j] = a; c[k] = b;
         const du = [0, 0, 0], dv = [0, 0, 0]; du[j] = 1; dv[k] = 1;
-        stones.push({ c, du, dv, color });
+        arr.push({ c, du, dv, color });
       }
       color++;
     }
+    return arr;
   }
   const rotVec = (v, a, th) => {
     const j = mod3(a + 1), k = mod3(a + 2), cs = Math.cos(th), sn = Math.sin(th), r = v.slice();
@@ -160,16 +210,16 @@ h1 {
   };
   const snap = v => v.map(x => Math.round(x * 2) / 2 + 0);
   const inCap = (st, m) => st.c[m.a] * m.side > 0;
-  function applyMoveExact(m) {
-    for (const st of stones) if (inCap(st, m)) {
+  function applyMoveTo(arr, m) {
+    for (const st of arr) if (inCap(st, m)) {
       const th = m.dir * Math.PI / 2;
       st.c = snap(rotVec(st.c, m.a, th)); st.du = snap(rotVec(st.du, m.a, th)); st.dv = snap(rotVec(st.dv, m.a, th));
     }
   }
-  const inverse = m => ({ ...m, dir: -m.dir });
-  function isSolved() {
+  const inverse = m => ({ a: m.a, side: m.side, dir: -m.dir });
+  function solvedArr(arr) {
     const faces = new Map();
-    for (const st of stones) {
+    for (const st of arr) {
       const i = st.c.findIndex(x => Math.abs(x) === 1);
       const key = i * 2 + (st.c[i] > 0 ? 1 : 0);
       if (faces.has(key) && faces.get(key) !== st.color) return false;
@@ -177,24 +227,123 @@ h1 {
     }
     return true;
   }
-
-  let history = [], startState = [], level = 7, busy = false, anim = null, lastScramble = [];
-
-  function snapshot() { return stones.map(s => ({ c: s.c.slice(), du: s.du.slice(), dv: s.dv.slice(), color: s.color })); }
-  function restore(snap_) { snap_.forEach((s, i) => { stones[i].c = s.c.slice(); stones[i].du = s.du.slice(); stones[i].dv = s.dv.slice(); }); }
-
-  function scramble() {
+  function genScramble(n) {
+    let moves, arr;
     do {
-      buildSolved(); lastScramble = [];
-      let prev = -1;
-      for (let n = 0; n < level; n++) {
+      arr = makeSolved(); moves = []; let prev = -1;
+      for (let i = 0; i < n; i++) {
         let a; do { a = Math.floor(Math.random() * 3); } while (a === prev);
         prev = a;
         const mv = { a, side: Math.random() < 0.5 ? 1 : -1, dir: Math.random() < 0.5 ? 1 : -1 };
-        lastScramble.push(mv); applyMoveExact(mv);
+        moves.push(mv); applyMoveTo(arr, mv);
       }
-    } while (isSolved());
-    startState = snapshot(); history = []; refresh();
+    } while (solvedArr(arr));
+    return moves;
+  }
+  const clean = m => ({ a: +m.a, side: +m.side, dir: +m.dir });
+  // Firebase hands back arrays or key-ordered objects; accept both.
+  const toList = x => x == null ? [] : Array.isArray(x) ? x.filter(Boolean).map((v, i) => ({ key: String(i), ...clean(v) }))
+    : Object.keys(x).sort().map(k => ({ key: k, ...clean(x[k]) }));
+
+  let stones = makeSolved();
+  let busy = false, anim = null, level = DEFAULT_LEVEL;
+
+  // ---------- Shared room state ----------
+  // target = what the room says; applied = what this screen currently shows.
+  const params = new URLSearchParams(location.search);
+  const ROOM = (params.get('room') || 'main').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24) || 'main';
+  let roomRef = null, shared = false, gotSnapshot = false;
+  let target = { id: null, level: DEFAULT_LEVEL, scramble: [], moves: [], reveal: DEFAULT_REVEAL };
+  let applied = { id: null, keys: [], moves: [] };
+  let soloCounter = 0;
+
+  function newId() { return Math.random().toString(36).slice(2, 10); }
+
+  function startSolo(reason) {
+    if (roomRef) { try { roomRef.off(); } catch (e) {} }
+    roomRef = null; shared = false;
+    if (!target.id) newPuzzle(level);
+    setNet('solo', reason || 'Solo mode: this orb is not shared with other players.');
+  }
+
+  function newPuzzle(n) {
+    const scramble = genScramble(n), id = newId();
+    if (shared && roomRef) {
+      roomRef.set({ id, level: n, scramble, reveal: target.reveal || DEFAULT_REVEAL }).catch(() => startSolo('Live sharing failed, so this orb is solo for now.'));
+    } else {
+      target = { id, level: n, scramble, moves: [], reveal: target.reveal || DEFAULT_REVEAL };
+    }
+  }
+  function submitMove(m) {
+    if (shared && roomRef) roomRef.child('moves').push(clean(m)).catch(() => startSolo('Live sharing failed, so this orb is solo for now.'));
+    else target.moves.push({ key: 'l' + String(++soloCounter).padStart(6, '0'), ...clean(m) });
+  }
+  function undoLast() {
+    const last = target.moves[target.moves.length - 1];
+    if (!last) return;
+    if (shared && roomRef) roomRef.child('moves/' + last.key).remove();
+    else target.moves.pop();
+  }
+  function restartPuzzle() {
+    if (shared && roomRef) roomRef.child('moves').remove();
+    else target.moves = [];
+  }
+  function saveReveal(text) {
+    target.reveal = text || DEFAULT_REVEAL;
+    if (shared && roomRef) roomRef.child('reveal').set(target.reveal);
+    renderReveal();
+  }
+
+  function onRoom(snap) {
+    gotSnapshot = true;
+    const v = snap.val();
+    if (!v || !v.id) {
+      // First visit to this room: create the first puzzle (only one client wins the race).
+      const scramble = genScramble(DEFAULT_LEVEL), id = newId();
+      roomRef.transaction(cur => (cur && cur.id) ? undefined : { id, level: DEFAULT_LEVEL, scramble, reveal: DEFAULT_REVEAL })
+        .catch(() => startSolo('Live sharing failed, so this orb is solo for now.'));
+      return;
+    }
+    target = { id: v.id, level: v.level || DEFAULT_LEVEL, scramble: toList(v.scramble), moves: toList(v.moves), reveal: v.reveal || DEFAULT_REVEAL };
+    setNet('live', 'Live: everyone with this link sees this same orb.');
+    renderReveal();
+  }
+
+  function connect() {
+    let db = null;
+    try {
+      if (typeof firebase !== 'undefined') {
+        if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+        db = firebase.database();
+      }
+    } catch (e) { db = null; }
+    if (!db) return startSolo('Solo mode: the live connection could not load.');
+    roomRef = db.ref('orbRooms/' + ROOM); shared = true;
+    roomRef.on('value', onRoom, () => startSolo('Solo mode: live sharing is not available right now.'));
+    setTimeout(() => { if (!gotSnapshot && shared) startSolo('Solo mode: could not reach the live connection.'); }, 7000);
+  }
+
+  // ---------- Applying the room state to the screen ----------
+  function rebuild() {
+    stones = makeSolved();
+    target.scramble.forEach(m => applyMoveTo(stones, m));
+    target.moves.forEach(m => applyMoveTo(stones, m));
+    applied = { id: target.id, keys: target.moves.map(m => m.key), moves: target.moves.map(clean) };
+    anim = null; busy = false;
+    refresh(true);
+  }
+  function syncStep() {
+    if (busy || !target.id) return;
+    if (applied.id !== target.id) { rebuild(); return; }
+    let p = 0;
+    while (p < applied.keys.length && p < target.moves.length && applied.keys[p] === target.moves[p].key) p++;
+    if (applied.keys.length > p) {
+      const m = applied.moves[applied.moves.length - 1];
+      startMove(inverse(m), { kind: 'back' });
+    } else if (target.moves.length > p) {
+      const mv = target.moves[p];
+      startMove(clean(mv), { kind: 'fwd', key: mv.key });
+    }
   }
 
   // ---------- View (trackball) ----------
@@ -213,7 +362,9 @@ h1 {
 
   // ---------- Canvas ----------
   const cv = document.getElementById('orb');
-  const ctx = cv.getContext('2d');
+  const mainCtx = cv.getContext('2d');
+  let ctx = mainCtx;
+  const off = document.createElement('canvas'), offCtx = off.getContext('2d');
   let S = 0, dpr = 1, cx = 0, cy = 0, Rpx = 0, cradle = null, dirty = true;
   const LIGHT = norm([-0.45, 0.6, 0.65]);
   const HALF = norm([LIGHT[0], LIGHT[1], LIGHT[2] + 1]);
@@ -224,14 +375,12 @@ h1 {
     const c = document.createElement('canvas'); c.width = c.height = Math.round(S * dpr);
     const g = c.getContext('2d'); g.scale(dpr, dpr);
     const rand = rng(7);
-    // copper ring
     const grd = g.createRadialGradient(cx, cy, Rpx * 1.04, cx, cy, Rpx * 1.22);
     grd.addColorStop(0, '#7a3b17'); grd.addColorStop(0.35, '#e09a5a'); grd.addColorStop(0.7, '#b8692f'); grd.addColorStop(1, '#5a2a0e');
     g.beginPath(); g.arc(cx, cy, Rpx * 1.22, 0, Math.PI * 2); g.arc(cx, cy, Rpx * 1.04, 0, Math.PI * 2, true);
     g.fillStyle = grd; g.fill('evenodd');
     g.fillStyle = 'rgba(40,18,6,0.7)';
     for (let i = 0; i < 28; i++) { const a = i / 28 * Math.PI * 2; g.beginPath(); g.arc(cx + Math.cos(a) * Rpx * 1.13, cy + Math.sin(a) * Rpx * 1.13, Rpx * 0.018, 0, Math.PI * 2); g.fill(); }
-    // ring of weathered stones with moss
     const rock = (x, y, w, h, rot, tone) => {
       g.save(); g.translate(x, y); g.rotate(rot);
       g.beginPath();
@@ -263,15 +412,15 @@ h1 {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = cv.clientWidth; S = w;
     cv.width = Math.round(w * dpr); cv.height = Math.round(w * dpr);
+    off.width = cv.width; off.height = cv.height;
     cx = S / 2; cy = S / 2; Rpx = S * 0.3;
     cradle = buildCradle(); dirty = true;
   }
 
-  // ---------- Drawing ----------
+  // ---------- Drawing the ball ----------
   const N = 4;           // sub-divisions per stone edge (for the curved look)
   const MARGIN = 0.07;   // groove between stones
   const ease = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-  let glow = 0, t0 = performance.now();
 
   const project = p => { const v = mvec(R, p); return { x: cx + v[0] * Rpx, y: cy - v[1] * Rpx, z: v[2], v }; };
   function surfacePoint(st, a, b, m, th) {
@@ -281,8 +430,7 @@ h1 {
   }
 
   function drawStone(st, idx, m, th) {
-    const turning = m && inCap(st, m);
-    const mm = turning ? m : null;
+    const mm = m && inCap(st, m) ? m : null;
     const h = 0.5 - MARGIN, base = STONES[st.color].rgb;
     const grid = [];
     for (let i = 0; i <= N; i++) { const row = []; for (let j = 0; j <= N; j++) row.push(project(surfacePoint(st, -h + 2 * h * i / N, -h + 2 * h * j / N, mm, th))); grid.push(row); }
@@ -301,7 +449,6 @@ h1 {
       ctx.beginPath(); ctx.moveTo(q[0].x, q[0].y); ctx.lineTo(q[1].x, q[1].y); ctx.lineTo(q[2].x, q[2].y); ctx.lineTo(q[3].x, q[3].y); ctx.closePath();
       ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 0.8; ctx.strokeStyle = col; ctx.stroke();
     }
-    // chiseled edge
     ctx.beginPath();
     const edge = [];
     for (let i = 0; i <= N; i++) edge.push(grid[i][0]);
@@ -312,7 +459,6 @@ h1 {
     for (const p of edge) { if (p.z < 0) { started = false; continue; } started ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); started = true; }
     ctx.lineWidth = Math.max(1, Rpx * 0.012); ctx.strokeStyle = 'rgba(20,12,6,0.55)'; ctx.stroke();
 
-    // carved glyph
     if (centerZ > 0.1) {
       const gs = 0.3, lw = Math.max(1.4, Rpx * 0.028);
       const stroke = (dx, dy, style, width) => {
@@ -332,71 +478,209 @@ h1 {
     }
   }
 
-  function draw(now) {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, S, S);
-    if (cradle) ctx.drawImage(cradle, 0, 0, S, S);
-    if (glow > 0.01) {
-      const pulse = 0.8 + 0.2 * Math.sin(now / 350);
-      const g = ctx.createRadialGradient(cx, cy, Rpx * 0.6, cx, cy, Rpx * 1.7);
-      g.addColorStop(0, `rgba(255,214,110,${0.55 * glow * pulse})`); g.addColorStop(1, 'rgba(255,214,110,0)');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
-    }
-    // dark core so grooves between stones read as shadow
-    const core = ctx.createRadialGradient(cx - Rpx * 0.3, cy - Rpx * 0.3, Rpx * 0.1, cx, cy, Rpx);
+  function drawBallTo(g, now) {
+    const prev = ctx; ctx = g;
+    const core = g.createRadialGradient(cx - Rpx * 0.3, cy - Rpx * 0.3, Rpx * 0.1, cx, cy, Rpx);
     core.addColorStop(0, '#2a2218'); core.addColorStop(1, '#0c0905');
-    ctx.beginPath(); ctx.arc(cx, cy, Rpx * 1.005, 0, Math.PI * 2); ctx.fillStyle = core; ctx.fill();
-
+    g.beginPath(); g.arc(cx, cy, Rpx * 1.005, 0, Math.PI * 2); g.fillStyle = core; g.fill();
     let m = null, th = 0;
     if (anim) { m = anim.move; th = m.dir * Math.PI / 2 * ease(Math.min(1, (now - anim.t0) / anim.dur)); }
     stones.forEach((st, i) => drawStone(st, i, m, th));
+    ctx = prev;
   }
 
+  // ---------- The gate: light on the other side ----------
+  function pyramid(g, x, baseY, w, h, steps, fill) {
+    g.beginPath(); g.moveTo(x - w / 2, baseY);
+    for (let i = 0; i < steps; i++) {
+      const y = baseY - h * (i + 1) / steps, half = w / 2 * (1 - (i + 1) / (steps + 0.6));
+      g.lineTo(x - w / 2 * (1 - i / (steps + 0.6)), y); g.lineTo(x - half, y);
+    }
+    for (let i = steps - 1; i >= 0; i--) {
+      const y = baseY - h * (i + 1) / steps, half = w / 2 * (1 - (i + 1) / (steps + 0.6));
+      g.lineTo(x + half, y); g.lineTo(x + w / 2 * (1 - i / (steps + 0.6)), y);
+    }
+    g.lineTo(x + w / 2, baseY); g.closePath(); g.fillStyle = fill; g.fill();
+  }
+  function drawPortal(g, now) {
+    const r = Rpx * 1.04, horizon = cy + r * 0.3;
+    const sky = g.createLinearGradient(0, cy - r, 0, cy + r);
+    sky.addColorStop(0, '#fffaf0'); sky.addColorStop(0.5, '#ffe3a1'); sky.addColorStop(1, '#f0a548');
+    g.fillStyle = sky; g.fillRect(cx - r, cy - r, r * 2, r * 2);
+    const sx = cx, sy = cy - r * 0.18;
+    g.save(); g.translate(sx, sy); g.rotate(now / 7000);
+    for (let i = 0; i < 18; i++) {
+      g.rotate(Math.PI * 2 / 18); g.beginPath(); g.moveTo(0, 0); g.lineTo(r * 1.8, -r * 0.06); g.lineTo(r * 1.8, r * 0.06); g.closePath();
+      g.fillStyle = 'rgba(255,255,240,0.26)'; g.fill();
+    }
+    g.restore();
+    const sg = g.createRadialGradient(sx, sy, 0, sx, sy, r * 0.85);
+    sg.addColorStop(0, 'rgba(255,255,255,1)'); sg.addColorStop(0.2, 'rgba(255,250,215,0.95)'); sg.addColorStop(1, 'rgba(255,214,110,0)');
+    g.fillStyle = sg; g.fillRect(cx - r, cy - r, r * 2, r * 2);
+    pyramid(g, cx - r * 0.55, horizon, r * 0.62, r * 0.42, 5, 'rgba(110,64,30,0.6)');
+    pyramid(g, cx + r * 0.5, horizon, r * 0.5, r * 0.34, 4, 'rgba(110,64,30,0.55)');
+    const ground = g.createLinearGradient(0, horizon, 0, cy + r);
+    ground.addColorStop(0, '#6b8a3c'); ground.addColorStop(1, '#1d2d14');
+    g.fillStyle = ground; g.fillRect(cx - r, horizon, r * 2, r * 1.2);
+    g.beginPath(); g.moveTo(cx - r * 0.07, horizon); g.lineTo(cx + r * 0.07, horizon); g.lineTo(cx + r * 0.55, cy + r); g.lineTo(cx - r * 0.55, cy + r); g.closePath();
+    const path = g.createLinearGradient(0, horizon, 0, cy + r);
+    path.addColorStop(0, 'rgba(255,240,180,0.95)'); path.addColorStop(1, 'rgba(240,190,100,0.55)');
+    g.fillStyle = path; g.fill();
+    for (let i = 0; i < 30; i++) {
+      const h1 = (Math.sin(i * 91.7) * 43758.5453) % 1, h2 = (Math.sin(i * 12.3) * 24634.6345) % 1;
+      const mx = cx + (Math.abs(h1) * 2 - 1) * r, my = cy + r - ((Math.abs(h2) * r * 2 + now * 0.02 * (0.4 + Math.abs(h1))) % (r * 2));
+      g.beginPath(); g.arc(mx, my, 1 + Math.abs(h2) * 2, 0, Math.PI * 2); g.fillStyle = 'rgba(255,255,235,0.8)'; g.fill();
+    }
+  }
+
+  // ---------- Win scene: dust, then the gate splits open ----------
+  const dustCv = document.getElementById('dust'), dctx = dustCv.getContext('2d');
+  let particles = [], haze = 0;
+  let cine = { phase: 'idle', t0: 0 }, openT = 0, glow = 0;
+  const stageEl = document.getElementById('stage');
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function sizeDust() { dustCv.width = innerWidth; dustCv.height = innerHeight; }
+  function spawnDust(n) {
+    for (let i = 0; i < n; i++) particles.push({
+      x: Math.random() * dustCv.width, y: -8 - Math.random() * 30,
+      vx: (Math.random() - 0.5) * 24, vy: 70 + Math.random() * 150,
+      r: 0.8 + Math.random() * 2.8, a: 0.35 + Math.random() * 0.5, life: 2.2 + Math.random() * 2.2, age: 0,
+    });
+  }
+  function updateDust(dt) {
+    const s = dt / 1000;
+    for (const p of particles) { p.age += s; p.x += (p.vx + Math.sin(p.age * 3 + p.y * 0.01) * 14) * s; p.y += p.vy * s; }
+    particles = particles.filter(p => p.age < p.life && p.y < dustCv.height + 10);
+    dctx.clearRect(0, 0, dustCv.width, dustCv.height);
+    if (haze > 0.01) {
+      const g = dctx.createLinearGradient(0, 0, 0, dustCv.height * 0.5);
+      g.addColorStop(0, `rgba(176,150,108,${0.38 * haze})`); g.addColorStop(1, 'rgba(176,150,108,0)');
+      dctx.fillStyle = g; dctx.fillRect(0, 0, dustCv.width, dustCv.height * 0.5);
+    }
+    for (const p of particles) {
+      const fade = Math.min(1, (p.life - p.age) / 0.8);
+      dctx.beginPath(); dctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      dctx.fillStyle = `rgba(214,190,150,${p.a * fade})`; dctx.fill();
+    }
+  }
+
+  function updateCine(now, dt) {
+    const ph = cine.phase, el = now - cine.t0;
+    if (ph === 'dust') {
+      haze = Math.min(1, el / 900);
+      spawnDust(Math.round((el < 2600 ? 7 : 3) * dt / 16));
+      if (el > 3400) { cine = { phase: 'settle', t0: now }; setStatus(); }
+    } else if (ph === 'settle') {
+      haze = Math.max(0, haze - dt / 1400);
+      if ((particles.length === 0 && haze < 0.02) || el > 2800) { cine = { phase: 'open', t0: now }; setStatus(); }
+    } else if (ph === 'open') {
+      openT = Math.min(1, el / 3000);
+      if (openT >= 1) { cine = { phase: 'opened', t0: now }; setStatus(); }
+    } else if (ph === 'opened') {
+      openT = 1;
+    } else {
+      haze = Math.max(0, haze - dt / 600);
+      if (openT > 0) openT = Math.max(0, openT - dt / 1100);
+    }
+    document.getElementById('app').classList.toggle('opened', cine.phase === 'opened' || (cine.phase === 'open' && openT > 0.85));
+    const targetGlow = (ph === 'dust' || ph === 'settle') ? 1 : 0;
+    if (Math.abs(glow - targetGlow) > 0.002) glow += (targetGlow - glow) * Math.min(1, dt / 350);
+    // rumble
+    let amp = 0;
+    if (!reduceMotion) amp = ph === 'dust' ? 2.4 : ph === 'settle' ? 1 : ph === 'open' && openT < 0.5 ? 1.2 : 0;
+    stageEl.style.transform = amp ? `translate(${((Math.random() - 0.5) * amp * 2).toFixed(2)}px, ${((Math.random() - 0.5) * amp * 2).toFixed(2)}px)` : '';
+  }
+
+  function draw(now) {
+    ctx = mainCtx;
+    mainCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    mainCtx.clearRect(0, 0, S, S);
+    if (cradle) mainCtx.drawImage(cradle, 0, 0, S, S);
+    if (glow > 0.01) {
+      const pulse = 0.8 + 0.2 * Math.sin(now / 350);
+      const g = mainCtx.createRadialGradient(cx, cy, Rpx * 0.6, cx, cy, Rpx * 1.7);
+      g.addColorStop(0, `rgba(255,214,110,${0.55 * glow * pulse})`); g.addColorStop(1, 'rgba(255,214,110,0)');
+      mainCtx.fillStyle = g; mainCtx.fillRect(0, 0, S, S);
+    }
+    if (openT <= 0) { drawBallTo(mainCtx, now); return; }
+    // portal first, then the two halves of the ball slide apart over it, inside the copper ring
+    mainCtx.save(); mainCtx.beginPath(); mainCtx.arc(cx, cy, Rpx * 1.04, 0, Math.PI * 2); mainCtx.clip();
+    drawPortal(mainCtx, now);
+    if (openT < 1) {
+      offCtx.setTransform(dpr, 0, 0, dpr, 0, 0); offCtx.clearRect(0, 0, S, S);
+      drawBallTo(offCtx, now);
+      const d = ease(openT) * Rpx * 1.1;
+      mainCtx.drawImage(off, 0, 0, cx * dpr, S * dpr, -d, 0, cx, S);
+      mainCtx.drawImage(off, cx * dpr, 0, (S - cx) * dpr, S * dpr, cx + d, 0, S - cx, S);
+    }
+    mainCtx.restore();
+  }
+
+  let t0 = performance.now();
   function frame(now) {
     const dt = Math.min(50, now - t0); t0 = now;
     if (anim && now - anim.t0 >= anim.dur) finishAnim();
+    syncStep();
     if (!drag || drag.mode !== 'view') {
       if (Math.abs(spin.x) > 1e-4 || Math.abs(spin.y) > 1e-4) {
         R = mmul(axisRot('x', spin.x), mmul(axisRot('y', spin.y), R)); spin.x *= 0.92; spin.y *= 0.92; dirty = true;
       }
     }
-    const solved = app.classList.contains('solved');
-    const targetGlow = solved ? 1 : 0;
-    if (Math.abs(glow - targetGlow) > 0.002) { glow += (targetGlow - glow) * Math.min(1, dt / 350); dirty = true; }
-    if (solved) { R = mmul(axisRot('y', 0.004), R); dirty = true; }
-    if (anim || dirty) { draw(now); dirty = !!anim; }
+    updateCine(now, dt);
+    if (particles.length || haze > 0.01 || dustActive) { updateDust(dt); dustActive = particles.length > 0 || haze > 0.01; }
+    const animating = anim || cine.phase !== 'idle' || openT > 0 || glow > 0.01;
+    if (animating || dirty) { draw(now); dirty = !!animating; }
     requestAnimationFrame(frame);
   }
+  let dustActive = false;
 
   // ---------- Moves ----------
   const app = document.getElementById('app');
   const statusEl = document.getElementById('status');
   const movesEl = document.getElementById('moves');
   const undoBtn = document.getElementById('undo');
-  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const netEl = document.getElementById('net');
+  const revealEl = document.getElementById('reveal');
 
-  function refresh() {
-    const solved = isSolved();
+  function setNet(kind, text) { netEl.className = kind; netEl.textContent = text; }
+  function renderReveal() { revealEl.textContent = target.reveal || DEFAULT_REVEAL; const inp = document.getElementById('revealText'); if (document.activeElement !== inp) inp.value = target.reveal === DEFAULT_REVEAL ? '' : target.reveal; }
+
+  function setStatus() {
+    const solved = solvedArr(stones);
     app.classList.toggle('solved', solved);
-    statusEl.textContent = solved
-      ? 'The Sun Orb awakens! Every side is restored.'
-      : (history.length ? 'Keep turning. Match each side to one glyph.' : 'Drag a stone to turn it. Drag the empty space to spin the orb.');
-    movesEl.textContent = `Turns: ${history.length}`;
-    undoBtn.disabled = history.length === 0 || busy;
+    const ph = cine.phase;
+    statusEl.textContent = !solved
+      ? (applied.keys.length ? 'Keep turning. Match each side to one glyph.' : 'Drag a stone to turn it. Drag the empty space to spin the orb.')
+      : ph === 'dust' ? 'The Sun Orb awakens! Dust falls from the ceiling...'
+      : ph === 'settle' ? 'The chamber falls silent...'
+      : ph === 'open' ? 'The orb splits open...'
+      : 'The gate is open.';
+  }
+
+  function refresh(instant) {
+    const solved = solvedArr(stones);
+    if (!solved) { cine = { phase: 'idle', t0: performance.now() }; }
+    else if (cine.phase === 'idle') {
+      if (instant) { cine = { phase: 'opened', t0: performance.now() }; openT = 1; }
+      else { cine = { phase: 'dust', t0: performance.now() }; }
+    }
+    setStatus();
+    movesEl.textContent = `Turns: ${target.moves.length}`;
+    undoBtn.disabled = target.moves.length === 0;
     dirty = true;
   }
 
-  function startMove(move, record) {
+  function startMove(move, meta) {
     if (busy) return;
-    busy = true; anim = { move, t0: performance.now(), dur: reduceMotion ? 1 : 280, record };
-    undoBtn.disabled = true;
+    busy = true; anim = { move, meta, t0: performance.now(), dur: reduceMotion ? 1 : 280 };
   }
   function finishAnim() {
-    const { move, record } = anim;
-    applyMoveExact(move);
-    if (record === 'push') history.push(move);
-    if (record === 'pop') history.pop();
-    anim = null; busy = false; refresh();
+    const { move, meta } = anim;
+    applyMoveTo(stones, move);
+    if (meta.kind === 'fwd') { applied.keys.push(meta.key); applied.moves.push(clean(move)); }
+    else { applied.keys.pop(); applied.moves.pop(); }
+    anim = null; busy = false; refresh(false);
   }
 
   // ---------- Input ----------
@@ -452,7 +736,7 @@ h1 {
       if (Math.hypot(dx, dy) > Math.max(14, S * 0.03)) {
         const m = chooseMove(drag.st, dx, dy);
         drag = { mode: 'done' };
-        if (m) startMove(m, 'push');
+        if (m && target.id) submitMove(m);
       }
     }
   });
@@ -464,19 +748,30 @@ h1 {
     R = mmul(axisRot('x', k[0]), mmul(axisRot('y', k[1]), R)); dirty = true;
   });
 
-  undoBtn.addEventListener('click', () => { if (busy || !history.length) return; startMove(inverse(history[history.length - 1]), 'pop'); });
-  document.getElementById('restart').addEventListener('click', () => { if (busy) return; restore(startState); history = []; refresh(); });
-  document.getElementById('shuffle').addEventListener('click', () => { if (!busy) scramble(); });
-  document.querySelectorAll('#levels .btn').forEach(b => b.addEventListener('click', () => {
-    if (busy) return;
+  // ---------- Buttons ----------
+  undoBtn.addEventListener('click', undoLast);
+  document.getElementById('restart').addEventListener('click', () => { if (confirm('Restart this puzzle for everyone?')) restartPuzzle(); });
+  document.getElementById('shuffle').addEventListener('click', () => { if (confirm('Start a brand new puzzle for everyone?')) newPuzzle(level); });
+  document.querySelectorAll('#levels [data-n]').forEach(b => b.addEventListener('click', () => {
     level = +b.dataset.n;
-    document.querySelectorAll('#levels .btn').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
-    scramble();
+    document.querySelectorAll('#levels [data-n]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   }));
+  document.getElementById('saveReveal').addEventListener('click', () => saveReveal(document.getElementById('revealText').value.trim().slice(0, 200)));
+  document.getElementById('copylink').addEventListener('click', () => {
+    const link = location.origin + location.pathname + (ROOM === 'main' ? '' : '?room=' + ROOM);
+    (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(() => alert('Link copied. Send it to your players:\n' + link), () => prompt('Copy this link for your players:', link));
+  });
+  document.getElementById('roomInfo').textContent = 'Room: ' + ROOM + '. Use ?room=name on the link to run a separate orb for another group.';
 
+  // ---------- Go ----------
   new ResizeObserver(resize).observe(cv);
-  buildSolved(); scramble(); resize();
-  if (location.search.includes('debug')) window.__orb = { stones, get lastScramble() { return lastScramble; }, get history() { return history; }, startMove, isSolved, inverse, get busy() { return busy; } };
+  addEventListener('resize', sizeDust);
+  sizeDust(); resize(); connect();
+  if (params.has('debug')) window.__orb = {
+    get target() { return target; }, get applied() { return applied; }, get busy() { return busy; },
+    get phase() { return cine.phase; }, get openT() { return openT; }, get shared() { return shared; },
+    solved: () => solvedArr(stones), submitMove, inverse, newPuzzle, undoLast,
+  };
   requestAnimationFrame(frame);
 })();
 </script>
