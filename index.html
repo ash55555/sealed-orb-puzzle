@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Sun Orb | Temple Puzzle</title>
-<meta name="description" content="A shared 3D stone-ball twist puzzle in Maya style. Everyone with the link turns the same orb, together, in real time.">
+<meta name="description" content="A shared 3D stone-ball twist puzzle in Maya style. Everyone with the link turns the same orb together. Match any two sides to open the gate.">
 <meta name="theme-color" content="#0a1a17">
 <style>
 :root {
@@ -109,14 +109,14 @@ h1 {
 <main class="app" id="app">
   <p class="kicker">Temple of the Sealed Orb</p>
   <h1>The Sun Orb</h1>
-  <p class="lede">The stones turn under your hand. Restore each side of the orb to a single glyph.</p>
+  <p class="lede">The stones turn under your hand. Make any two sides of the orb a single color and glyph to wake it.</p>
 
   <div class="stage" id="stage">
     <canvas id="orb" tabindex="0" role="img" aria-label="A stone ball made of 24 carved stones. Drag a stone to turn part of the ball. Drag empty space to spin the whole ball."></canvas>
   </div>
 
   <div class="hud" aria-live="polite">
-    <p id="status">Drag a stone to turn it. Drag the empty space to spin the orb.</p>
+    <p id="status">Drag a stone to turn it. Match any two sides to wake the orb.</p>
     <span id="moves">Turns: 0</span>
     <p class="reveal" id="reveal"></p>
   </div>
@@ -136,9 +136,9 @@ h1 {
       <div>
         <label>Start a brand new puzzle (everyone's orb resets):</label>
         <div class="row seg" id="levels" role="group" aria-label="Difficulty">
-          <button class="btn" type="button" data-n="3" aria-pressed="false">Easy</button>
+          <button class="btn" type="button" data-n="4" aria-pressed="false">Easy</button>
           <button class="btn" type="button" data-n="5" aria-pressed="true">Medium</button>
-          <button class="btn" type="button" data-n="8" aria-pressed="false">Hard</button>
+          <button class="btn" type="button" data-n="7" aria-pressed="false">Hard</button>
           <button class="btn btn-primary" id="shuffle" type="button">New puzzle</button>
         </div>
       </div>
@@ -153,7 +153,7 @@ h1 {
     </div>
   </details>
 
-  <p class="how"><b>Goal:</b> make every side of the ball show a single color and glyph. <b>Turn:</b> press a stone and drag along the ball; half of the orb turns with it. <b>Look around:</b> drag the empty space (or use the arrow keys) to spin the orb. Everyone with this link is turning the same orb at the same time.</p>
+  <p class="how"><b>Goal:</b> make any <b>two</b> sides of the ball each show a single color and glyph. Any two sides will do. <b>Turn:</b> press a stone and drag along the ball; half of the orb turns with it. <b>Look around:</b> drag the empty space (or use the arrow keys) to spin the orb. Everyone with this link is turning the same orb at the same time.</p>
 </main>
 
 <script>
@@ -217,16 +217,22 @@ h1 {
     }
   }
   const inverse = m => ({ a: m.a, side: m.side, dir: -m.dir });
-  function solvedArr(arr) {
+  // A side is "done" when all 4 of its stones are the same color.
+  const SIDES_NEEDED = 2;
+  function sidesDone(arr) {
     const faces = new Map();
     for (const st of arr) {
       const i = st.c.findIndex(x => Math.abs(x) === 1);
       const key = i * 2 + (st.c[i] > 0 ? 1 : 0);
-      if (faces.has(key) && faces.get(key) !== st.color) return false;
-      faces.set(key, st.color);
+      const counts = faces.get(key) || faces.set(key, [0, 0, 0, 0, 0, 0]).get(key);
+      counts[st.color]++;
     }
-    return true;
+    let done = 0;
+    for (const counts of faces.values()) if (Math.max(...counts) === 4) done++;
+    return done;
   }
+  // The orb wakes once any TWO sides are each a single color.
+  const solvedArr = arr => sidesDone(arr) >= SIDES_NEEDED;
   function genScramble(n) {
     let moves, arr;
     do {
@@ -237,7 +243,7 @@ h1 {
         const mv = { a, side: Math.random() < 0.5 ? 1 : -1, dir: Math.random() < 0.5 ? 1 : -1 };
         moves.push(mv); applyMoveTo(arr, mv);
       }
-    } while (solvedArr(arr));
+    } while (sidesDone(arr) > 0);
     return moves;
   }
   const clean = m => ({ a: +m.a, side: +m.side, dir: +m.dir });
@@ -651,7 +657,7 @@ h1 {
     app.classList.toggle('solved', solved);
     const ph = cine.phase;
     statusEl.textContent = !solved
-      ? (applied.keys.length ? 'Keep turning. Match each side to one glyph.' : 'Drag a stone to turn it. Drag the empty space to spin the orb.')
+      ? (applied.keys.length ? 'Keep turning. Make any two sides a single color.' : 'Drag a stone to turn it. Match any two sides to wake the orb.')
       : ph === 'dust' ? 'The Sun Orb awakens! Dust falls from the ceiling...'
       : ph === 'settle' ? 'The chamber falls silent...'
       : ph === 'open' ? 'The orb splits open...'
@@ -666,7 +672,7 @@ h1 {
       else { cine = { phase: 'dust', t0: performance.now() }; }
     }
     setStatus();
-    movesEl.textContent = `Turns: ${target.moves.length}`;
+    movesEl.textContent = solved ? `Turns: ${target.moves.length}` : `Turns: ${target.moves.length}  ·  Sides done: ${sidesDone(stones)} of ${SIDES_NEEDED}`;
     undoBtn.disabled = target.moves.length === 0;
     dirty = true;
   }
@@ -770,7 +776,7 @@ h1 {
   if (params.has('debug')) window.__orb = {
     get target() { return target; }, get applied() { return applied; }, get busy() { return busy; },
     get phase() { return cine.phase; }, get openT() { return openT; }, get shared() { return shared; },
-    solved: () => solvedArr(stones), submitMove, inverse, newPuzzle, undoLast,
+    solved: () => solvedArr(stones), sides: () => sidesDone(stones), submitMove, inverse, newPuzzle, undoLast,
   };
   requestAnimationFrame(frame);
 })();

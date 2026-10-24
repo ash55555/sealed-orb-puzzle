@@ -1,6 +1,6 @@
 # The Sun Orb
 
-A shared, 3D stone-ball twist puzzle in Maya style, made as a table prop for a tabletop game. The ball is built from 24 carved stones in six colors, each with its own glyph. Everyone with the link turns the **same orb at the same time**. Restore every side to a single color and glyph and dust falls from the ceiling, then the orb splits open like a gate onto a world of light.
+A shared, 3D stone-ball twist puzzle in Maya style, made as a table prop for a tabletop game. The ball is built from 24 carved stones in six colors, each with its own glyph. Everyone with the link turns the **same orb at the same time**. Make any two sides a single color and glyph and dust falls from the ceiling, then the orb splits open like a gate onto a world of light.
 
 **Play it:** https://ashtabletop.com/sealed-orb-puzzle/
 
@@ -8,7 +8,7 @@ A shared, 3D stone-ball twist puzzle in Maya style, made as a table prop for a t
 
 - **Turn:** press a stone and drag along the ball. Half of the orb turns with it.
 - **Look around:** drag the empty space around the ball (or use the arrow keys) to spin the whole orb. This only changes your own view.
-- **Goal:** every side of the ball shows one color and one glyph.
+- **Goal:** any two sides of the ball each show one color and one glyph. A counter under the orb tracks how many sides are done.
 - Every color has its own glyph, so the puzzle works for color-blind players.
 
 ## For the DM
